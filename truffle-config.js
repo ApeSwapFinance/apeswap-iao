@@ -32,7 +32,7 @@ module.exports = {
 
    bscMainnet: {
      provider: function() {
-       return new HDWalletProvider("", "https://bsc-dataseed.binance.org")
+       return new HDWalletProvider(DEPLOYER_KEY, "https://bsc-dataseed.binance.org")
      },
      network_id: "56"
    },

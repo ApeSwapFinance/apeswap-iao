@@ -4,8 +4,10 @@
   "main": "index.js",
   "scripts": {
     "migrate": "truffle migrate --network testnet --reset",
+    "migrate:main": "truffle migrate --network bscMainnet --reset",
     "compile": "truffle compile --network testnet",
     "verify:testnet": "truffle run verify IFO --network testnet",
+    "verify:main": "truffle run verify IFO --network bscMainnet",
     "test": "npx builder test"
   },
   "dependencies": {

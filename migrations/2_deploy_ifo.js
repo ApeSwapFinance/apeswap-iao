@@ -4,13 +4,13 @@ module.exports = async (deployer) => {
   // const num = 50 * Math.pow(10, 18);
   // const numAsHex = "0x" + num.toString(16);
 
-  const lpToken = '0x90fc86a7570063a9ea971ec74f01f89569ad6237'; // Testnet BANANA/BNB
-  const offeringToken = '0x4Fb99590cA95fc3255D9fA66a1cA46c43C34b09a'; // Testnet BANANA
-  const startBlock = '7068668';
-  const endBlock = '7069400';
-  const offeringAmount = '10000000000000000000000';
-  const raisingAmount = '100000000000000000000';
-  const adminAddress = '0xb5e1Ec9861D7c1C99cB3d79dd602cC6122F0d7dc';
+  const lpToken = '0xf65c1c0478efde3c19b49ecbe7acc57bb6b1d713'; // BANANA/BNB
+  const offeringToken = '0x05b339b0a346bf01f851dde47a5d485c34fe220c'; // NAUT
+  const startBlock = '5720600';
+  const endBlock = '5721800';
+  const offeringAmount = '200000000000000';
+  const raisingAmount = '10000000000000000000000';
+  const adminAddress = '0xC9F40d1c8a84b8AeD12A241e7b99682Fb7A3FE84';
   await deployer.deploy(
     IFO,
     lpToken,
