@@ -1,4 +1,8 @@
 var HDWalletProvider = require("truffle-hdwallet-provider");
+require('dotenv').config()
+
+const BSCSCANAPIKEY = process.env.BSCSCANAPIKEY;
+const DEPLOYER_KEY = process.env.DEPLOYER_KEY;
 
 module.exports = {
   // Uncommenting the defaults below
@@ -18,12 +22,12 @@ module.exports = {
      port: 8545,
      network_id: "*"
    },
-   bscTestnet:{
-     provider: function() {
-       // 0x25449306F743E252720cC03540773423513f5FEf
-       return new HDWalletProvider("3a4462606834f2362f7ddbb33100445b9729351dd6935294fa95cdc1cdbf9cf8", "https://data-seed-prebsc-1-s1.binance.org:8545")
-     },
-     network_id: "97"
+   testnet:{
+    provider: () =>  new HDWalletProvider(DEPLOYER_KEY, "https://data-seed-prebsc-1-s1.binance.org:8545"),
+    network_id: 97,
+    confirmations: 2,
+    timeoutBlocks: 200,
+    production: true
    },
 
    bscMainnet: {
@@ -43,7 +47,7 @@ module.exports = {
     'truffle-plugin-verify'
   ],
   api_keys: {
-    etherscan: ''
+    bscscan: BSCSCANAPIKEY
   },
   compilers: {
     solc: {

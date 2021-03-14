@@ -1,4 +1,5 @@
 /script
+.env
 .DS_Store
 package-lock.json
 truffle-config.js
