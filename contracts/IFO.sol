@@ -1,5 +1,15 @@
 pragma solidity 0.6.12;
 
+/*
+ * ApeSwapFinance 
+ * App:             https://apeswap.finance
+ * Medium:          https://ape-swap.medium.com    
+ * Twitter:         https://twitter.com/ape_swap 
+ * Telegram:        https://t.me/ape_swap
+ * Announcements:   https://t.me/ape_swap_news
+ * GitHub:          https://github.com/ApeSwapFinance
+ */
+
 import '@pancakeswap/pancake-swap-lib/contracts/math/SafeMath.sol';
 import '@pancakeswap/pancake-swap-lib/contracts/token/BEP20/IBEP20.sol';
 import '@pancakeswap/pancake-swap-lib/contracts/token/BEP20/SafeBEP20.sol';
@@ -136,8 +146,8 @@ contract IFO is ReentrancyGuard {
   }
 
   function finalWithdraw(uint256 _lpAmount, uint256 _offerAmount) public onlyAdmin {
-    require (_lpAmount < lpToken.balanceOf(address(this)), 'not enough token 0');
-    require (_offerAmount < offeringToken.balanceOf(address(this)), 'not enough token 1');
+    require (_lpAmount <= lpToken.balanceOf(address(this)), 'not enough token 0');
+    require (_offerAmount <= offeringToken.balanceOf(address(this)), 'not enough token 1');
     lpToken.safeTransfer(address(msg.sender), _lpAmount);
     offeringToken.safeTransfer(address(msg.sender), _offerAmount);
   }
