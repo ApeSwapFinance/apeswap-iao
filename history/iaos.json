@@ -10,5 +10,17 @@
         "endBlock": 5720510,
         "offeringAmount": "200000000000000",
         "raisingAmount": "10000000000000000000000"
+    },
+    {
+        "name": "JediYield IAO",
+        "address": "0xCBe256573185d767EfD4a797CB360880728B8fD8",
+        "lpTokenName": "BANANA/BNB",
+        "lpToken": "0xf65c1c0478efde3c19b49ecbe7acc57bb6b1d713",
+        "offeringToken": "0x0491648c910ad2c1afaab733faf71d30313df7fc",
+        "offeringTokenName": "JDI",
+        "startBlock": 6206300,
+        "endBlock": 6207500,
+        "offeringAmount": "7000000000000000000000000",
+        "raisingAmount": "20000000000000000000000"
     }
 ]

@@ -1,10 +1,10 @@
 pragma solidity 0.6.12;
 
 /*
- * ApeSwapFinance 
+ * ApeSwapFinance
  * App:             https://apeswap.finance
- * Medium:          https://ape-swap.medium.com    
- * Twitter:         https://twitter.com/ape_swap 
+ * Medium:          https://ape-swap.medium.com
+ * Twitter:         https://twitter.com/ape_swap
  * Telegram:        https://t.me/ape_swap
  * Announcements:   https://t.me/ape_swap_news
  * GitHub:          https://github.com/ApeSwapFinance
@@ -64,7 +64,7 @@ contract IFO is ReentrancyGuard {
       startBlock = _startBlock;
       endBlock = _endBlock;
       offeringAmount = _offeringAmount;
-      raisingAmount= _raisingAmount;
+      raisingAmount = _raisingAmount;
       totalAmount = 0;
       adminAddress = _adminAddress;
   }
@@ -81,7 +81,7 @@ contract IFO is ReentrancyGuard {
 
   function setRaisingAmount(uint256 _raisingAmount) public onlyAdmin {
     require (block.number < startBlock, 'no');
-    raisingAmount= _raisingAmount;
+    raisingAmount = _raisingAmount;
   }
 
   function deposit(uint256 _amount) public {

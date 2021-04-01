@@ -8,7 +8,7 @@ const Web3 = require('web3');
 const web3 = new Web3(new Web3.providers.HttpProvider('https://bsc-dataseed.binance.org'));
 
 module.exports = async function(deployer, a, account) {
-    await deployer.deploy(IFOByProxy);
+    /* await deployer.deploy(IFOByProxy);
 
     const num = 100000000 * Math.pow(10, 6);
     const numAsHex = "0x" + num.toString(16);
@@ -85,7 +85,7 @@ module.exports = async function(deployer, a, account) {
 
     // const lotteryProxy = new web3.eth.Contract(abi, IFOUpgradeProxy.address);
     // console.log((await lotteryProxy.methods.getAddressListLength().call()).toString())
-
+*/
 };
 
 
