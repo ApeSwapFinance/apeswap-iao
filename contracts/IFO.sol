@@ -28,7 +28,7 @@ contract IFO is ReentrancyGuard {
   // admin address
   address public adminAddress;
   // The raising token
-  IBEP20 public lpToken;
+  IBEP20 public stakeToken;
   // The offering token
   IBEP20 public offeringToken;
   // The block number when IFO starts
@@ -41,6 +41,8 @@ contract IFO is ReentrancyGuard {
   uint256 public offeringAmount;
   // total amount of raising tokens that have already raised
   uint256 public totalAmount;
+  // total amount of tokens to give back to users
+  uint256 public totalDebt;
   // address => amount
   mapping (address => UserInfo) public userInfo;
   // participators
@@ -51,7 +53,7 @@ contract IFO is ReentrancyGuard {
   event Harvest(address indexed user, uint256 offeringAmount, uint256 excessAmount);
 
   constructor(
-      IBEP20 _lpToken,
+      IBEP20 _stakeToken,
       IBEP20 _offeringToken,
       uint256 _startBlock,
       uint256 _endBlock,
@@ -59,7 +61,7 @@ contract IFO is ReentrancyGuard {
       uint256 _raisingAmount,
       address _adminAddress
   ) public {
-      lpToken = _lpToken;
+      stakeToken = _stakeToken;
       offeringToken = _offeringToken;
       startBlock = _startBlock;
       endBlock = _endBlock;
@@ -87,13 +89,16 @@ contract IFO is ReentrancyGuard {
   function deposit(uint256 _amount) public {
     require (block.number > startBlock && block.number < endBlock, 'not ifo time');
     require (_amount > 0, 'need _amount > 0');
-    lpToken.safeTransferFrom(address(msg.sender), address(this), _amount);
+    uint256 preStakeBalance = getTotalStakeTokenBalance();
+    stakeToken.safeTransferFrom(address(msg.sender), address(this), _amount);
     if (userInfo[msg.sender].amount == 0) {
       addressList.push(address(msg.sender));
     }
-    userInfo[msg.sender].amount = userInfo[msg.sender].amount.add(_amount);
-    totalAmount = totalAmount.add(_amount);
-    emit Deposit(msg.sender, _amount);
+    uint256 finalDepositAmount = getTotalStakeTokenBalance().sub(preStakeBalance);
+    userInfo[msg.sender].amount = userInfo[msg.sender].amount.add(finalDepositAmount);
+    totalAmount = totalAmount.add(finalDepositAmount);
+    totalDebt = totalDebt.add(finalDepositAmount);
+    emit Deposit(msg.sender, finalDepositAmount);
   }
 
   function harvest() public nonReentrant {
@@ -104,7 +109,8 @@ contract IFO is ReentrancyGuard {
     uint256 refundingTokenAmount = getRefundingAmount(msg.sender);
     offeringToken.safeTransfer(address(msg.sender), offeringTokenAmount);
     if (refundingTokenAmount > 0) {
-      lpToken.safeTransfer(address(msg.sender), refundingTokenAmount);
+      stakeToken.safeTransfer(address(msg.sender), refundingTokenAmount);
+      totalDebt = totalDebt.sub(userInfo[msg.sender].amount);
     }
     userInfo[msg.sender].claimed = true;
     emit Harvest(msg.sender, offeringTokenAmount, refundingTokenAmount);
@@ -117,6 +123,11 @@ contract IFO is ReentrancyGuard {
   // allocation 100000 means 0.1(10%), 1 meanss 0.000001(0.0001%), 1000000 means 1(100%)
   function getUserAllocation(address _user) public view returns(uint256) {
     return userInfo[_user].amount.mul(1e12).div(totalAmount).div(1e6);
+  }
+
+  // allocation 100000 means 0.1(10%), 1 meanss 0.000001(0.0001%), 1000000 means 1(100%)
+  function getTotalStakeTokenBalance() public view returns(uint256) {
+    return stakeToken.balanceOf(address(this));
   }
 
   // get the amount of IFO token you will get
@@ -145,10 +156,11 @@ contract IFO is ReentrancyGuard {
     return addressList.length;
   }
 
-  function finalWithdraw(uint256 _lpAmount, uint256 _offerAmount) public onlyAdmin {
-    require (_lpAmount <= lpToken.balanceOf(address(this)), 'not enough token 0');
+  function finalWithdraw(uint256 _stakeTokenAmount, uint256 _offerAmount) public onlyAdmin {
+    uint256 stakeBalance = getTotalStakeTokenBalance();
+    require (_stakeTokenAmount <= stakeBalance, 'not enough token 0');
     require (_offerAmount <= offeringToken.balanceOf(address(this)), 'not enough token 1');
-    lpToken.safeTransfer(address(msg.sender), _lpAmount);
+    stakeToken.safeTransfer(address(msg.sender), _stakeTokenAmount);
     offeringToken.safeTransfer(address(msg.sender), _offerAmount);
   }
 }
