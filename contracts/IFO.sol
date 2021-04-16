@@ -101,7 +101,7 @@ contract IFO is ReentrancyGuard {
     emit Deposit(msg.sender, finalDepositAmount);
   }
 
-  function harvest() public nonReentrant {
+  function harvest() external nonReentrant {
     require (block.number > endBlock, 'not harvest time');
     require (userInfo[msg.sender].amount > 0, 'have you participated?');
     require (!userInfo[msg.sender].claimed, 'nothing to harvest');
@@ -156,10 +156,10 @@ contract IFO is ReentrancyGuard {
     return addressList.length;
   }
 
-  function finalWithdraw(uint256 _stakeTokenAmount, uint256 _offerAmount) public onlyAdmin {
+  function finalWithdraw(uint256 _stakeTokenAmount, uint256 _offerAmount) external onlyAdmin {
     uint256 stakeBalance = getTotalStakeTokenBalance();
-    require (_stakeTokenAmount <= stakeBalance, 'not enough token 0');
-    require (_offerAmount <= offeringToken.balanceOf(address(this)), 'not enough token 1');
+    require (_stakeTokenAmount <= stakeBalance, 'not enough stakeToken');
+    require (_offerAmount <= offeringToken.balanceOf(address(this)), 'not enough reward token');
     stakeToken.safeTransfer(address(msg.sender), _stakeTokenAmount);
     offeringToken.safeTransfer(address(msg.sender), _offerAmount);
   }
