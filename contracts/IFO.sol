@@ -110,9 +110,9 @@ contract IFO is ReentrancyGuard {
     offeringToken.safeTransfer(address(msg.sender), offeringTokenAmount);
     if (refundingTokenAmount > 0) {
       stakeToken.safeTransfer(address(msg.sender), refundingTokenAmount);
-      totalDebt = totalDebt.sub(userInfo[msg.sender].amount);
     }
     userInfo[msg.sender].claimed = true;
+    totalDebt = totalDebt.sub(userInfo[msg.sender].amount);
     emit Harvest(msg.sender, offeringTokenAmount, refundingTokenAmount);
   }
 
