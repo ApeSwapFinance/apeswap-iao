@@ -104,12 +104,14 @@ contract IFO is ReentrancyGuard {
     }
 
     function depositBNB() external payable onlyActiveIFO {
+        require(isBNBStaking, 'stake token is not BNB');
         require(msg.value > 0, 'need _amount > 0');
         depositInternal(msg.value);
     }
 
     /// @dev Deposit BEP20 tokens with support for reflect tokens
     function deposit(uint256 _amount) external onlyActiveIFO {
+        require(!isBNBStaking, "stake token is BNB, deposit through 'depositBNB'");
         require(_amount > 0, "need _amount > 0");
         uint256 pre = getTotalStakeTokenBalance();
         stakeToken.safeTransferFrom(
@@ -117,9 +119,6 @@ contract IFO is ReentrancyGuard {
             address(this),
             _amount
         );
-        if (userInfo[msg.sender].amount == 0) {
-            addressList.push(address(msg.sender));
-        }
         uint256 finalDepositAmount = getTotalStakeTokenBalance().sub(pre);
         depositInternal(finalDepositAmount);
     }
@@ -128,6 +127,9 @@ contract IFO is ReentrancyGuard {
     ///  any tokens in, but only updates the state. Make sure to transfer in the funds
     ///  in a parent function
     function depositInternal(uint256 _amount) internal {
+        if (userInfo[msg.sender].amount == 0) {
+            addressList.push(address(msg.sender));
+        }
         userInfo[msg.sender].amount = userInfo[msg.sender].amount.add(
             _amount
         );
