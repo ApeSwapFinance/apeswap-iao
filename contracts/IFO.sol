@@ -56,6 +56,8 @@ contract IFO is ReentrancyGuard {
         uint256 offeringAmount,
         uint256 excessAmount
     );
+    event EmergencySweepWithdraw(address indexed receiver, address indexed token, uint256 balance);
+
 
     constructor(
         IBEP20 _stakeToken,
@@ -227,5 +229,16 @@ contract IFO is ReentrancyGuard {
             // Transfer BEP20 to address
             IBEP20(stakeToken).safeTransfer(_to, _amount);
         }
+    }
+
+    /// @notice A public function to sweep accidental BEP20 transfers to this contract. 
+    ///   Tokens are sent to owner
+    /// @param token The address of the BEP20 token to sweep
+    function sweepToken(IBEP20 token) external onlyAdmin {
+        require(address(token) != address(stakeToken), "can not sweep stake token");
+        require(address(token) != address(offeringToken), "can not sweep offering token");
+        uint256 balance = token.balanceOf(address(this));
+        token.safeTransfer(msg.sender, balance);
+        emit EmergencySweepWithdraw(msg.sender, address(token), balance);
     }
 }
