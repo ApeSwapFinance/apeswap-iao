@@ -171,7 +171,6 @@ contract IFO is ReentrancyGuard {
         return userInfo[_user].amount.mul(ALLOCATION_PRECISION).div(totalAmount);
     }
 
-    // allocation 100000 means 0.1(10%), 1 meanss 0.000001(0.0001%), 1000000 means 1(100%)
     function getTotalStakeTokenBalance() public view returns (uint256) {
         if(isBNBStaking) {
             return address(this).balance;
