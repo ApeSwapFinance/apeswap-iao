@@ -49,6 +49,8 @@ contract IFO is ReentrancyGuard {
     mapping(address => UserInfo) public userInfo;
     // participators
     address[] public addressList;
+    // allocation precision 
+    uint256 private ALLOCATION_PRECISION = 1e18;
 
     event Deposit(address indexed user, uint256 amount);
     event Harvest(
@@ -159,9 +161,14 @@ contract IFO is ReentrancyGuard {
         return userInfo[_user].claimed;
     }
 
-    // allocation 100000 means 0.1(10%), 1 meanss 0.000001(0.0001%), 1000000 means 1(100%)
+    /**
+     * allocation: 
+     * 1e17 = 0.1 (10%)
+     * 1e18 = 1 (100%)
+     * 1 = 0.000000 000000 000001 (0.000000 000000 0001%)
+     */ 
     function getUserAllocation(address _user) public view returns (uint256) {
-        return userInfo[_user].amount.mul(1e12).div(totalAmount).div(1e6);
+        return userInfo[_user].amount.mul(ALLOCATION_PRECISION).div(totalAmount);
     }
 
     // allocation 100000 means 0.1(10%), 1 meanss 0.000001(0.0001%), 1000000 means 1(100%)
@@ -178,7 +185,7 @@ contract IFO is ReentrancyGuard {
     function getOfferingAmount(address _user) public view returns (uint256) {
         if (totalAmount > raisingAmount) {
             uint256 allocation = getUserAllocation(_user);
-            return offeringAmount.mul(allocation).div(1e6);
+            return offeringAmount.mul(allocation).div(ALLOCATION_PRECISION);
         } else {
             // userInfo[_user] / (raisingAmount / offeringAmount)
             return
@@ -192,7 +199,7 @@ contract IFO is ReentrancyGuard {
             return 0;
         }
         uint256 allocation = getUserAllocation(_user);
-        uint256 payAmount = raisingAmount.mul(allocation).div(1e6);
+        uint256 payAmount = raisingAmount.mul(allocation).div(ALLOCATION_PRECISION);
         return userInfo[_user].amount.sub(payAmount);
     }
 
