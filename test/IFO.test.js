@@ -31,8 +31,8 @@ contract('IFO', ([alice, bob, carol, dev, minter]) => {
     await this.ifo.deposit('2', {from: alice});
     await this.ifo.deposit('3', {from: carol});
     assert.equal((await this.ifo.totalAmount()).toString(), '6');
-    assert.equal((await this.ifo.getUserAllocation(carol)).toString(), '500000');
-    assert.equal((await this.ifo.getUserAllocation(alice)).toString(), '333333');
+    assert.equal((await this.ifo.getUserAllocation(carol)).toString(), '500000000000000000');
+    assert.equal((await this.ifo.getUserAllocation(alice)).toString(), '333333333333333333');
     assert.equal((await this.ifo.getOfferingAmount(carol)).toString(), '30');
     assert.equal((await this.ifo.getOfferingAmount(bob)).toString(), '10');
     assert.equal((await this.ifo.getRefundingAmount(bob)).toString(), '0');
@@ -79,8 +79,8 @@ contract('IFO', ([alice, bob, carol, dev, minter]) => {
     await this.ifo.deposit('2', {from: alice});
     await this.ifo.deposit('3', {from: carol});
     assert.equal((await this.ifo.totalAmount()).toString(), '18');
-    assert.equal((await this.ifo.getUserAllocation(carol)).toString(), '500000');
-    assert.equal((await this.ifo.getUserAllocation(alice)).toString(), '333333');
+    assert.equal((await this.ifo.getUserAllocation(carol)).toString(), '500000000000000000');
+    assert.equal((await this.ifo.getUserAllocation(alice)).toString(), '333333333333333333');
     assert.equal((await this.ifo.getOfferingAmount(carol)).toString(), '50');
     assert.equal((await this.ifo.getOfferingAmount(bob)).toString(), '16');
     assert.equal((await this.ifo.getRefundingAmount(carol)).toString(), '4');
@@ -131,8 +131,8 @@ contract('IFO', ([alice, bob, carol, dev, minter]) => {
     await this.ifo.deposit('2', {from: alice});
     await this.ifo.deposit('3', {from: carol});
     assert.equal((await this.ifo.totalAmount()).toString(), '18');
-    assert.equal((await this.ifo.getUserAllocation(carol)).toString(), '500000');
-    assert.equal((await this.ifo.getUserAllocation(alice)).toString(), '333333');
+    assert.equal((await this.ifo.getUserAllocation(carol)).toString(), '500000000000000000');
+    assert.equal((await this.ifo.getUserAllocation(alice)).toString(), '333333333333333333');
     assert.equal((await this.ifo.getOfferingAmount(carol)).toString(), '9');
     assert.equal((await this.ifo.getOfferingAmount(minter)).toString(), '0');
     assert.equal((await this.ifo.getOfferingAmount(bob)).toString(), '3');
