@@ -11,7 +11,7 @@
     "verify:testnet": "truffle run verify IFO --network bsc-testnet && truffle run verify IFOByProxy --network bsc-testnet && truffle run verify IFOUpgradeProxy --network bsc-testnet",
     "flatten": "npx truffle-flattener ./contracts/IFO.sol > IFO_flat.sol",
     "compile": "truffle compile",
-    "test": "npx builder test"
+    "test": "npx truffle test"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^3.2.0",
