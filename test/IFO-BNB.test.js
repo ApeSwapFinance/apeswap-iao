@@ -1,8 +1,14 @@
 const { expectRevert, time, balance, tracker } = require('@openzeppelin/test-helpers');
-const MockBEP20 = artifacts.require('MockBEP20');
-const IFO = artifacts.require('IFO');
+const { accounts, contract } = require('@openzeppelin/test-environment');
+const { expect, assert } = require('chai');
 
-contract('IFO', ([alice, bob, carol, dev, minter]) => {
+// Load compiled artifacts
+const IFO = contract.fromArtifact('IFO');
+const MockBEP20 = contract.fromArtifact('MockBEP20');
+
+describe('IFO-BNB', function() {
+  const [alice, bob, carol, dev, minter] = accounts;
+
   beforeEach(async () => {
     this.lp = { address: '0x0000000000000000000000000000000000000000' }
     this.ifoToken = await MockBEP20.new('WOW', 'WOW', '1000000', { from: minter });

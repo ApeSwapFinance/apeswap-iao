@@ -1,8 +1,17 @@
 const { expectRevert, time } = require('@openzeppelin/test-helpers');
-const MockBEP20 = artifacts.require('MockBEP20');
-const IFO = artifacts.require('IFO');
+const { accounts, contract } = require('@openzeppelin/test-environment');
+const { expect, assert } = require('chai');
 
-contract('IFO', ([alice, bob, carol, dev, minter]) => {
+// Load compiled artifacts
+const IFO = contract.fromArtifact('IFO');
+const MockBEP20 = contract.fromArtifact('MockBEP20');
+
+describe('IFO', function() {
+  // Set timeout
+  // TODO: This is required because advanceBlockTo takes time
+  this.timeout(10000);
+
+  const [alice, bob, carol, dev, minter] = accounts;
   beforeEach(async () => {
     this.lp = await MockBEP20.new('LPToken', 'LP1', '1000000', { from: minter });
     this.ifoToken = await MockBEP20.new('WOW', 'WOW', '1000000', { from: minter });
