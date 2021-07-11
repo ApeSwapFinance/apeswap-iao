@@ -12,7 +12,7 @@
     "flatten": "npx truffle-flattener ./contracts/IFO.sol > IFO_flat.sol",
     "compile": "truffle compile",
     "test": "yarn compile && mocha --exit --recursive",
-    "test-ci": "yarn ganache && yarn test"
+    "test-ci": "yarn test"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^3.2.0",
