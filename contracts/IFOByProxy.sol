@@ -16,7 +16,7 @@ import "@pancakeswap/pancake-swap-lib/contracts/token/BEP20/SafeBEP20.sol";
 import "@pancakeswap/pancake-swap-lib/contracts/utils/ReentrancyGuard.sol";
 import "@pancakeswap/pancake-swap-lib/contracts/proxy/Initializable.sol";
 
-contract IFO is ReentrancyGuard, Initializable {
+contract IFOByProxy is ReentrancyGuard, Initializable {
     using SafeMath for uint256;
     using SafeBEP20 for IBEP20;
 
@@ -51,7 +51,7 @@ contract IFO is ReentrancyGuard, Initializable {
     // participators
     address[] public addressList;
     // allocation precision 
-    uint256 private ALLOCATION_PRECISION = 1e18;
+    uint256 private ALLOCATION_PRECISION = 1e8;
 
     event Deposit(address indexed user, uint256 amount);
     event Harvest(
