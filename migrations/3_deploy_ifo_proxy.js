@@ -3,7 +3,7 @@ const IFOUpgradeProxy = artifacts.require("IFOUpgradeProxy");
 const { getNetworkConfig } = require('../deploy-config')
 
 const fs = require('fs');
-const abi = require('../migrations/abi/ifo.json')
+const abi = require('./abi/ifo.json')
 
 const Web3 = require('web3');
 const web3 = new Web3(new Web3.providers.HttpProvider('https://bsc-dataseed.binance.org'));

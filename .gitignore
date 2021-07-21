@@ -12,4 +12,8 @@ node_modules
 cache
 artifacts
 
+#VSCode
+.vscode/settings.json
+
+
 
