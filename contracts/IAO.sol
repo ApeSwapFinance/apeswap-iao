@@ -26,6 +26,7 @@ contract IAO is ReentrancyGuard, Initializable {
     struct UserInfo {
         uint256 amount; // How many tokens the user has provided.
         bool[HARVEST_PERIODS] claimed; // default false
+        bool refunded;
     }
 
     // admin address
@@ -165,6 +166,7 @@ contract IAO is ReentrancyGuard, Initializable {
         uint256 refundingTokenAmount = getRefundingAmount(msg.sender);
         if (refundingTokenAmount > 0) {
             safeTransferStakeInternal(address(msg.sender), refundingTokenAmount);
+            userInfo[msg.sender].refunded = true;
         }
     
         uint256 offeringTokenAmountPerPeriod = getOfferingAmountPerPeriod(msg.sender);
@@ -173,7 +175,7 @@ contract IAO is ReentrancyGuard, Initializable {
         userInfo[msg.sender].claimed[harvestPeriod] = true;
         // Subtract user debt after refund on initial harvest
         if(harvestPeriod == 0) {
-            totalDebt = totalDebt + userInfo[msg.sender].amount;
+            totalDebt = totalDebt - userInfo[msg.sender].amount;
         }
         emit Harvest(msg.sender, offeringTokenAmountPerPeriod, refundingTokenAmount);
     }
@@ -221,7 +223,7 @@ contract IAO is ReentrancyGuard, Initializable {
     // get the amount of lp token you will be refunded
     function getRefundingAmount(address _user) public view returns (uint256) {
         // Users are able to obtain their refund on the first harvest only
-        if (totalAmount <= raisingAmount || userInfo[msg.sender].claimed[0] == true) {
+        if (totalAmount <= raisingAmount || userInfo[msg.sender].refunded == true) {
             return 0;
         }
         uint256 allocation = getUserAllocation(_user);
@@ -239,9 +241,10 @@ contract IAO is ReentrancyGuard, Initializable {
         }
         stakeTokenHarvest = getRefundingAmount(_user);
 
+        uint256 userOfferingPerPeriod = getOfferingAmountPerPeriod(_user);
         for (uint256 i = HARVEST_PERIODS - 1; i >= 0; i--) {
             if(currentBlock > harvestReleaseBlocks[i]) {
-                offeringTokenHarvest += getOfferingAmountPerPeriod(_user);
+                offeringTokenHarvest += userOfferingPerPeriod;
             }
         }
     }
