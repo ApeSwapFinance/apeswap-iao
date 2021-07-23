@@ -53,9 +53,7 @@ contract IAO is ReentrancyGuard, Initializable {
     mapping(address => UserInfo) public userInfo;
     // participators
     address[] public addressList;
-    // FIXME: Using this allocation resulted in an error last time. Need to dive deeper
-    // allocation precision 
-    uint256 private ALLOCATION_PRECISION = 1e18; // Try using 1e8? 
+    
 
     event Deposit(address indexed user, uint256 amount);
     event Harvest(
@@ -66,8 +64,6 @@ contract IAO is ReentrancyGuard, Initializable {
     event EmergencySweepWithdraw(address indexed receiver, address indexed token, uint256 balance);
 
 
-    // https://docs.soliditylang.org/en/v0.8.6/introduction-to-smart-contracts.html#storage-memory-and-the-stack
-    // Functions can take up to 16 arguments
     function initialize(
       IERC20 _stakeToken,
       IERC20 _offeringToken,
@@ -88,10 +84,8 @@ contract IAO is ReentrancyGuard, Initializable {
         endBlock = _startBlock + _endBlockOffset;
         // Setup vesting release blocks
         for (uint256 i = 0; i < HARVEST_PERIODS; i++) {
-            // https://blog.soliditylang.org/2020/12/16/solidity-v0.8.0-release-announcement/
             harvestReleaseBlocks[i] = endBlock + (_vestingBlockOffset * i);
         }
-
 
         offeringAmount = _offeringAmount;
         raisingAmount = _raisingAmount;
@@ -107,7 +101,7 @@ contract IAO is ReentrancyGuard, Initializable {
     modifier onlyActiveIFO() {
         require(
             block.number > startBlock && block.number < endBlock,
-            "not ifo time"
+            "not iao time"
         );
         _;
     }
@@ -149,24 +143,22 @@ contract IAO is ReentrancyGuard, Initializable {
         if (userInfo[msg.sender].amount == 0) {
             addressList.push(address(msg.sender));
         }
-        userInfo[msg.sender].amount = userInfo[msg.sender].amount + _amount;
-        totalAmount = totalAmount + _amount;
-        totalDebt = totalDebt + _amount;
+        userInfo[msg.sender].amount += _amount;
+        totalAmount += _amount;
+        totalDebt += _amount;
         emit Deposit(msg.sender, _amount);
     }
 
     function harvest(uint256 harvestPeriod) external nonReentrant {
         require(harvestPeriod < HARVEST_PERIODS, "harvest period out of range");
-        // TODO: we should be able to remove the line below in favor of the line two lines below
-        require(block.number > endBlock, "not harvest time");
         require(block.number > harvestReleaseBlocks[harvestPeriod], "not harvest time");
         require(userInfo[msg.sender].amount > 0, "have you participated?");
-        require(!userInfo[msg.sender].claimed[harvestPeriod], "nothing to harvest");
+        require(!userInfo[msg.sender].claimed[harvestPeriod], "harvest for period already claimed");
         // Refunds are only given on the first harvest
         uint256 refundingTokenAmount = getRefundingAmount(msg.sender);
         if (refundingTokenAmount > 0) {
-            safeTransferStakeInternal(address(msg.sender), refundingTokenAmount);
             userInfo[msg.sender].refunded = true;
+            safeTransferStakeInternal(address(msg.sender), refundingTokenAmount);
         }
     
         uint256 offeringTokenAmountPerPeriod = getOfferingAmountPerPeriod(msg.sender);
@@ -180,7 +172,7 @@ contract IAO is ReentrancyGuard, Initializable {
         emit Harvest(msg.sender, offeringTokenAmountPerPeriod, refundingTokenAmount);
     }
 
-    function hasHarvest(address _user, uint256 harvestPeriod) external view returns (bool) {
+    function hasHarvested(address _user, uint256 harvestPeriod) external view returns (bool) {
         return userInfo[_user].claimed[harvestPeriod];
     }
 
@@ -191,7 +183,7 @@ contract IAO is ReentrancyGuard, Initializable {
      * 1 = 0.000000 000000 000001 (0.000000 000000 0001%)
      */ 
     function getUserAllocation(address _user) public view returns (uint256) {
-        return userInfo[_user].amount * ALLOCATION_PRECISION / totalAmount;
+        return userInfo[_user].amount * 1e12 / totalAmount / 1e6;
     }
 
     function getTotalStakeTokenBalance() public view returns (uint256) {
@@ -207,10 +199,9 @@ contract IAO is ReentrancyGuard, Initializable {
     function getOfferingAmount(address _user) public view returns (uint256) {
         if (totalAmount > raisingAmount) {
             uint256 allocation = getUserAllocation(_user);
-            return (offeringAmount * allocation) / ALLOCATION_PRECISION;
+            return (offeringAmount * allocation) / 1e6;
         } else {
-            // userInfo[_user] / (raisingAmount / offeringAmount)
-            // TODO: Double check this math
+            // Return an offering amount equal to a proportion of the raising amount
             return (userInfo[_user].amount * offeringAmount) / raisingAmount;
         }
     }
@@ -227,26 +218,39 @@ contract IAO is ReentrancyGuard, Initializable {
             return 0;
         }
         uint256 allocation = getUserAllocation(_user);
-        uint256 payAmount = (raisingAmount * allocation) / ALLOCATION_PRECISION;
+        uint256 payAmount = (raisingAmount * allocation) / 1e6;
         return userInfo[_user].amount - payAmount;
     }
 
     // get the amount of IFO token you will get per harvest period
-    function tokensAvailableForHarvest(address _user) public view returns (uint256 stakeTokenHarvest, uint256 offeringTokenHarvest) {
+    function userTokenStatus(address _user) 
+        public 
+        view 
+        returns (
+            uint256 stakeTokenHarvest, 
+            uint256 offeringTokenHarvest, 
+            uint256 offeringTokensVested
+        ) 
+    {
         uint256 currentBlock = block.number;
-        stakeTokenHarvest = 0;
-        offeringTokenHarvest = 0;
         if(currentBlock < endBlock) {
-            return (0,0);
+            return (0,0,0); 
         }
-        stakeTokenHarvest = getRefundingAmount(_user);
 
+        stakeTokenHarvest = getRefundingAmount(_user);
         uint256 userOfferingPerPeriod = getOfferingAmountPerPeriod(_user);
-        for (uint256 i = HARVEST_PERIODS - 1; i >= 0; i--) {
-            if(currentBlock > harvestReleaseBlocks[i]) {
+
+        for (uint256 i = 0; i < HARVEST_PERIODS; i++) {
+            if(currentBlock >= harvestReleaseBlocks[i] && !userInfo[_user].claimed[i]) {
+                // If offering tokens are available for harvest AND user has not claimed yet
                 offeringTokenHarvest += userOfferingPerPeriod;
+            } else if (currentBlock < harvestReleaseBlocks[i]) {
+                // If harvest period is in the future
+                offeringTokensVested += userOfferingPerPeriod;
             }
         }
+
+        return (stakeTokenHarvest, offeringTokenHarvest, offeringTokensVested);
     }
 
     function getAddressListLength() external view returns (uint256) {
