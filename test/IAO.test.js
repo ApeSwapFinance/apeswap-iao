@@ -4,7 +4,7 @@ const { expect, assert } = require('chai');
 
 // Load compiled artifacts
 const IAO = contract.fromArtifact('IAO');
-const MockBEP20 = contract.fromArtifact('MockBEP20');
+const MockERC20 = contract.fromArtifact('MockERC20');
 
 describe('IAO', function() {
   const OFFERING_AMOUNT = '100000000'
@@ -15,8 +15,8 @@ describe('IAO', function() {
 
   const [minter, dev, alice, bob, carol] = accounts;
   beforeEach(async () => {
-    this.raisingToken = await MockBEP20.new('LPToken', 'LP1', ether(RAISING_AMOUNT + '000000'), { from: minter });
-    this.offeringToken = await MockBEP20.new('WOW', 'WOW', ether(OFFERING_AMOUNT + '000000'), { from: minter });
+    this.raisingToken = await MockERC20.new('LPToken', 'LP1', ether(RAISING_AMOUNT + '000000'), { from: minter });
+    this.offeringToken = await MockERC20.new('WOW', 'WOW', ether(OFFERING_AMOUNT + '000000'), { from: minter });
 
     await this.raisingToken.transfer(bob, ether('1000'), { from: minter });
     await this.raisingToken.transfer(alice, ether('1000'), { from: minter });
