@@ -37,9 +37,9 @@ contract IAO is ReentrancyGuard, Initializable {
     bool public isBNBStaking;
     // The offering token
     IERC20 public offeringToken;
-    // The block number when IFO starts
+    // The block number when IAO starts
     uint256 public startBlock;
-    // The block number when IFO ends
+    // The block number when IAO ends
     uint256 public endBlock;
     // total amount of raising tokens need to be raised
     uint256 public raisingAmount;
@@ -94,11 +94,11 @@ contract IAO is ReentrancyGuard, Initializable {
     }
 
     modifier onlyAdmin() {
-        require(msg.sender == adminAddress, "admin: wut?");
+        require(msg.sender == adminAddress, "caller is not admin");
         _;
     }
 
-    modifier onlyActiveIFO() {
+    modifier onlyActiveIAO() {
         require(
             block.number > startBlock && block.number < endBlock,
             "not iao time"
@@ -107,25 +107,25 @@ contract IAO is ReentrancyGuard, Initializable {
     }
 
     function setOfferingAmount(uint256 _offerAmount) public onlyAdmin {
-        require(block.number < startBlock, "no");
+        require(block.number < startBlock, "cannot update during active iao");
         offeringAmount = _offerAmount;
     }
 
     function setRaisingAmount(uint256 _raisingAmount) public onlyAdmin {
-        require(block.number < startBlock, "no");
+        require(block.number < startBlock, "cannot update during active iao");
         raisingAmount = _raisingAmount;
     }
 
-    function depositBNB() external payable onlyActiveIFO {
+    function depositBNB() external payable onlyActiveIAO {
         require(isBNBStaking, 'stake token is not BNB');
-        require(msg.value > 0, 'need _amount > 0');
+        require(msg.value > 0, 'value not > 0');
         depositInternal(msg.value);
     }
 
     /// @dev Deposit ERC20 tokens with support for reflect tokens
-    function deposit(uint256 _amount) external onlyActiveIFO {
+    function deposit(uint256 _amount) external onlyActiveIAO {
         require(!isBNBStaking, "stake token is BNB, deposit through 'depositBNB'");
-        require(_amount > 0, "need _amount > 0");
+        require(_amount > 0, "_amount not > 0");
         uint256 pre = getTotalStakeTokenBalance();
         stakeToken.safeTransferFrom(
             address(msg.sender),
@@ -167,7 +167,7 @@ contract IAO is ReentrancyGuard, Initializable {
         userInfo[msg.sender].claimed[harvestPeriod] = true;
         // Subtract user debt after refund on initial harvest
         if(harvestPeriod == 0) {
-            totalDebt = totalDebt - userInfo[msg.sender].amount;
+            totalDebt -= userInfo[msg.sender].amount;
         }
         emit Harvest(msg.sender, offeringTokenAmountPerPeriod, refundingTokenAmount);
     }
@@ -195,7 +195,7 @@ contract IAO is ReentrancyGuard, Initializable {
         }
     }
 
-    // get the amount of IFO token you will get
+    // get the amount of IAO token you will get
     function getOfferingAmount(address _user) public view returns (uint256) {
         if (totalAmount > raisingAmount) {
             uint256 allocation = getUserAllocation(_user);
@@ -206,7 +206,7 @@ contract IAO is ReentrancyGuard, Initializable {
         }
     }
 
-    // get the amount of IFO token you will get per harvest period
+    // get the amount of IAO token you will get per harvest period
     function getOfferingAmountPerPeriod(address _user) public view returns (uint256) {
         return getOfferingAmount(_user) / HARVEST_PERIODS;
     }
@@ -222,7 +222,7 @@ contract IAO is ReentrancyGuard, Initializable {
         return userInfo[_user].amount - payAmount;
     }
 
-    // get the amount of IFO token you will get per harvest period
+    // get the amount of IAO token you will get per harvest period
     function userTokenStatus(address _user) 
         public 
         view 
@@ -263,7 +263,7 @@ contract IAO is ReentrancyGuard, Initializable {
     {
         require(
             _offerAmount <= offeringToken.balanceOf(address(this)),
-            "not enough reward token"
+            "not enough offering token"
         );
         safeTransferStakeInternal(address(msg.sender), _stakeTokenAmount);
         offeringToken.safeTransfer(address(msg.sender), _offerAmount);
@@ -275,7 +275,7 @@ contract IAO is ReentrancyGuard, Initializable {
         uint256 stakeBalance = getTotalStakeTokenBalance();
         require(
             _amount <= stakeBalance,
-            "not enough stakeToken"
+            "not enough stake token"
         );
 
         if (isBNBStaking) {
