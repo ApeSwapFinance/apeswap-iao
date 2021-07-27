@@ -71,30 +71,60 @@ describe('IAO', function() {
     // Test each harvest period
     for (let harvestPeriod = 0; harvestPeriod < 4; harvestPeriod++) {
       await time.advanceBlockTo((await this.iao.harvestReleaseBlocks(harvestPeriod)).toString());
+
+      // check that user cannot deposit during outside of active states
+      await expectRevert(
+        this.iao.deposit('1', {from: carol}),
+        'not iao time',
+      );
+
+      // Harvest bob
+      await this.iao.harvest(harvestPeriod, {from: bob});
+      await expectRevert(
+        this.iao.harvest(harvestPeriod, {from: bob}),
+        'harvest for period already claimed',
+      );
+
+      // Harvest alice
+      await this.iao.harvest(harvestPeriod, {from: alice});
+      await expectRevert(
+        this.iao.harvest(harvestPeriod, {from: alice}),
+        'harvest for period already claimed',
+      );
+
+      // Harvest carol
       assert.equal((await this.raisingToken.balanceOf(carol)).toString(), ether('700'));
       let beforeExpectedBalance = String(7500000 * harvestPeriod)
       assert.equal((await this.offeringToken.balanceOf(carol)).toString(), ether(beforeExpectedBalance));
-      
-      // Harvest
+
       await this.iao.harvest(harvestPeriod, {from: carol});
       let afterExpectedBalance = String(7500000 + 7500000 * harvestPeriod)
       assert.equal((await this.offeringToken.balanceOf(carol)).toString(), ether(afterExpectedBalance));
       // no refund
       assert.equal((await this.raisingToken.balanceOf(carol)).toString(), ether('700'));
       let userInfo = await this.iao.userInfo(carol)
+      // no refund given 
       assert.equal(userInfo.refunded, false);
       // check that user cannot harvest twice
       await expectRevert(
         this.iao.harvest(harvestPeriod, {from: carol}),
         'harvest for period already claimed',
       );
+
+      assert.equal((await this.iao.hasHarvested(carol, harvestPeriod)).toString(), 'true');
+      assert.equal((await this.iao.hasHarvested(bob, harvestPeriod)).toString(), 'true');
+      assert.equal((await this.iao.hasHarvested(alice, harvestPeriod)).toString(), 'true');
     }
 
-    await expectRevert(
-      this.iao.harvest(4, {from: carol}),
-      'harvest period out of range',
-    );
-
+    // Only raised 60%
+    assert.equal((await this.offeringToken.balanceOf(this.iao.address)).toString(), ether('40000000'));
+    assert.equal((await this.raisingToken.balanceOf(this.iao.address)).toString(), ether('600'));
+    // final withdraw
+    await this.iao.finalWithdraw(ether('600'), ether('40000000'), {from: dev})
+    assert.equal((await this.offeringToken.balanceOf(dev)).toString(), ether('40000000'));
+    assert.equal((await this.raisingToken.balanceOf(dev)).toString(), ether('600'));
+    assert.equal((await this.offeringToken.balanceOf(this.iao.address)).toString(), ether('0'));
+    assert.equal((await this.raisingToken.balanceOf(this.iao.address)).toString(), ether('0'));
   })
 
   it('raise enough++ lp', async () => {
@@ -143,6 +173,7 @@ describe('IAO', function() {
     assert.equal((await this.iao.getUserAllocation(alice)).toString(), '333333');
     assert.equal((await this.iao.getOfferingAmount(carol)).toString(), ether('50000000'));
     assert.equal((await this.iao.getOfferingAmount(bob)).toString(), ether('16666600'));
+    assert.equal((await this.iao.getOfferingAmount(alice)).toString(), ether('33333300'));
     assert.equal((await this.iao.getRefundingAmount(carol)).toString(), ether('400'));
     assert.equal((await this.iao.getRefundingAmount(bob)).toString(), ether('133.334'));
     await expectRevert(
@@ -154,6 +185,28 @@ describe('IAO', function() {
     // Test each harvest period
     for (let harvestPeriod = 0; harvestPeriod < 4; harvestPeriod++) {
       await time.advanceBlockTo((await this.iao.harvestReleaseBlocks(harvestPeriod)).toString());
+      
+      // check that user cannot deposit during outside of active states
+      await expectRevert(
+        this.iao.deposit('1', {from: carol}),
+        'not iao time',
+      );
+
+      // Harvest bob
+      await this.iao.harvest(harvestPeriod, {from: bob});
+      await expectRevert(
+        this.iao.harvest(harvestPeriod, {from: bob}),
+        'harvest for period already claimed',
+      );
+
+      // Harvest alice
+      await this.iao.harvest(harvestPeriod, {from: alice});
+      await expectRevert(
+        this.iao.harvest(harvestPeriod, {from: alice}),
+        'harvest for period already claimed',
+      );
+
+      // harvest carol
       let raisingBalance = harvestPeriod ? ether('500') : ether('100');
       assert.equal((await this.raisingToken.balanceOf(carol)).toString(), raisingBalance);
       let beforeExpectedBalance = String(12500000 * harvestPeriod)
@@ -172,7 +225,21 @@ describe('IAO', function() {
         this.iao.harvest(harvestPeriod, {from: carol}),
         'harvest for period already claimed',
       );
+
+      assert.equal((await this.iao.hasHarvested(carol, harvestPeriod)).toString(), 'true');
+      assert.equal((await this.iao.hasHarvested(bob, harvestPeriod)).toString(), 'true');
+      assert.equal((await this.iao.hasHarvested(alice, harvestPeriod)).toString(), 'true');
     }
+
+    // 100 offering tokens are left due to rounding 
+    assert.equal((await this.offeringToken.balanceOf(this.iao.address)).toString(), ether('100'));
+    assert.equal((await this.raisingToken.balanceOf(this.iao.address)).toString(), ether('999.999'));
+    // final withdraw
+    await this.iao.finalWithdraw(ether('999.999'), ether('100'), {from: dev})
+    assert.equal((await this.offeringToken.balanceOf(dev)).toString(), ether('100'));
+    assert.equal((await this.raisingToken.balanceOf(dev)).toString(), ether('999.999'));
+    assert.equal((await this.offeringToken.balanceOf(this.iao.address)).toString(), ether('0'));
+    assert.equal((await this.raisingToken.balanceOf(this.iao.address)).toString(), ether('0'));
 
   })
 
@@ -196,7 +263,7 @@ describe('IAO', function() {
     assert.equal((await this.iao.harvestReleaseBlocks(3)).toString(), '280');
 
 
-    await this.offeringToken.transfer(this.iao.address, ether('100'), { from: minter });
+    await this.offeringToken.transfer(this.iao.address, ether('18'), { from: minter });
 
     await this.raisingToken.approve(this.iao.address, ether('1000'), { from: alice });
     await this.raisingToken.approve(this.iao.address, ether('1000'), { from: bob });
@@ -234,6 +301,31 @@ describe('IAO', function() {
     // Test each harvest period
     for (let harvestPeriod = 0; harvestPeriod < 4; harvestPeriod++) {
       await time.advanceBlockTo((await this.iao.harvestReleaseBlocks(harvestPeriod)).toString());
+
+      // check that user cannot deposit during outside of active states
+      await expectRevert(
+        this.iao.deposit('1', {from: carol}),
+        'not iao time',
+      );
+
+      // Harvest bob
+      await this.iao.harvest(harvestPeriod, {from: bob});
+      let userInfo = await this.iao.userInfo(bob)
+      assert.equal(userInfo.refunded, false);
+      await expectRevert(
+        this.iao.harvest(harvestPeriod, {from: bob}),
+        'harvest for period already claimed',
+      );
+
+      // Harvest alice
+      await this.iao.harvest(harvestPeriod, {from: alice});
+      userInfo = await this.iao.userInfo(alice)
+      assert.equal(userInfo.refunded, false);
+      await expectRevert(
+        this.iao.harvest(harvestPeriod, {from: alice}),
+        'harvest for period already claimed',
+      );
+
       // test view functions
       const { stakeTokenHarvest, offeringTokenHarvest, offeringTokensVested } = await this.iao.userTokenStatus(carol);
       assert.equal(stakeTokenHarvest.toString(), ether('0'));
@@ -252,7 +344,7 @@ describe('IAO', function() {
       assert.equal((await this.offeringToken.balanceOf(carol)).toString(), ether(afterExpectedBalance));
       // refund given
       assert.equal((await this.raisingToken.balanceOf(carol)).toString(), ether('991'));
-      let userInfo = await this.iao.userInfo(carol)
+      userInfo = await this.iao.userInfo(carol)
       assert.equal(userInfo.refunded, false);
       // check that user cannot harvest twice
       await expectRevert(
@@ -261,13 +353,22 @@ describe('IAO', function() {
       );
 
       assert.equal((await this.iao.hasHarvested(carol, harvestPeriod)).toString(), 'true');
-      assert.equal((await this.iao.hasHarvested(bob, harvestPeriod)).toString(), 'false');
-
-      // TEST
-      // tokensAvailableForHarvest
+      assert.equal((await this.iao.hasHarvested(bob, harvestPeriod)).toString(), 'true');
+      assert.equal((await this.iao.hasHarvested(alice, harvestPeriod)).toString(), 'true');
     }
 
     assert.equal((await this.iao.getAddressListLength()).toString(), '3');
+
+    
+    // 100 offering tokens are left due to rounding 
+    assert.equal((await this.offeringToken.balanceOf(this.iao.address)).toString(), ether('0'));
+    assert.equal((await this.raisingToken.balanceOf(this.iao.address)).toString(), ether('18'));
+    // final withdraw
+    await this.iao.finalWithdraw(ether('18'), ether('0'), {from: dev})
+    assert.equal((await this.offeringToken.balanceOf(dev)).toString(), ether('0'));
+    assert.equal((await this.raisingToken.balanceOf(dev)).toString(), ether('18'));
+    assert.equal((await this.offeringToken.balanceOf(this.iao.address)).toString(), ether('0'));
+    assert.equal((await this.raisingToken.balanceOf(this.iao.address)).toString(), ether('0'));
 
   })
 });
