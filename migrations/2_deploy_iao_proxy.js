@@ -1,11 +1,12 @@
 const IAO = artifacts.require("IAO");
 const IAOUpgradeProxy = artifacts.require("IAOUpgradeProxy");
+const { ether } = require('@openzeppelin/test-helpers');
 const { getNetworkConfig } = require('../deploy-config')
 
 const Web3 = require('web3');
 const web3 = new Web3(new Web3.providers.HttpProvider('https://bsc-dataseed.binance.org'));
 
-module.exports = async function(deployer, network, accounts) {
+module.exports = async function (deployer, network, accounts) {
   const { adminAddress, proxyAdminAddress } = getNetworkConfig(network, accounts);
 
   const deployments = [
@@ -19,6 +20,8 @@ module.exports = async function(deployer, network, accounts) {
     //   raisingAmount: '', // 
     // },
   ]
+
+  let deploymentOutput = [];
 
   for (const deployment of deployments) {
     await deployer.deploy(IAO);
@@ -83,8 +86,14 @@ module.exports = async function(deployer, network, accounts) {
 
     await deployer.deploy(IAOUpgradeProxy, proxyAdminAddress, IAO.address, abiEncodeData);
 
-    console.log(proxyAdminAddress, IAOUpgradeProxy.address, IAO.address, abiEncodeData);
+    deploymentOutput.push({
+      IAOUpgradeProxy: IAOUpgradeProxy.address,
+      IAO: IAO.address,
+      proxyAdminAddress
+    });
   }
+  // log deployments
+  console.dir(deploymentOutput);
 };
 
 

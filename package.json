@@ -8,7 +8,7 @@
     "migrate:testnet": "truffle migrate --network bsc-testnet --reset",
     "migrate:bsc": "truffle migrate --network bsc",
     "verify:bsc": "truffle run verify IAO --network bsc && truffle run verify IAOUpgradeProxy --network bsc",
-    "verify:testnet": "truffle run verify IAO --network bsc-testnet && truffle run verify IAOUpgradeProxy --network bsc-testnet",
+    "verify:testnet": "truffle run verify IAO --network bsc-testnet && truffle run verify IAOUpgradeProxy --network bsc-testnet && truffle run verify MockERC20 --network bsc-testnet",
     "flatten": "npx truffle-flattener ./contracts/IAO.sol > IAO_flat.sol",
     "compile": "truffle compile",
     "test": "yarn compile && mocha --exit --recursive",

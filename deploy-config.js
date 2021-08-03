@@ -6,7 +6,7 @@ function getNetworkConfig(network, accounts) {
             adminAddress: '0x6c905b4108A87499CEd1E0498721F2B831c6Ab13', // General Admin
             proxyAdminAddress: '0xf81A0Ee9BB9606e375aeff30364FfA17Bb8a7FD1', // Proxy Admin
         }
-    } else if (['testnet', 'testnet-fork'].includes(network)) {
+    } else if (['bsc-testnet', 'bsc-testnet-fork'].includes(network)) {
         console.log(`Deploying with BSC testnet config.`)
         return {
             adminAddress: '0xE375D169F8f7bC18a544a6e5e546e63AD7511581',
