@@ -248,7 +248,7 @@ describe('IAO', function() {
     await this.iao.initialize(
       this.raisingToken.address, 
       this.offeringToken.address, 
-      '200', 
+      '300', 
       '50', 
       '10',
       ether('18'), // offering amount
@@ -257,10 +257,10 @@ describe('IAO', function() {
       { from: minter }
     );
 
-    assert.equal((await this.iao.harvestReleaseBlocks(0)).toString(), '250');
-    assert.equal((await this.iao.harvestReleaseBlocks(1)).toString(), '260');
-    assert.equal((await this.iao.harvestReleaseBlocks(2)).toString(), '270');
-    assert.equal((await this.iao.harvestReleaseBlocks(3)).toString(), '280');
+    assert.equal((await this.iao.harvestReleaseBlocks(0)).toString(), '350');
+    assert.equal((await this.iao.harvestReleaseBlocks(1)).toString(), '360');
+    assert.equal((await this.iao.harvestReleaseBlocks(2)).toString(), '370');
+    assert.equal((await this.iao.harvestReleaseBlocks(3)).toString(), '380');
 
 
     await this.offeringToken.transfer(this.iao.address, ether('18'), { from: minter });
@@ -273,7 +273,7 @@ describe('IAO', function() {
       'not iao time',
     );
 
-    await time.advanceBlockTo('200');
+    await time.advanceBlockTo('300');
 
     await this.iao.deposit(ether('1'), {from: bob});
     await this.iao.deposit(ether('2'), {from: alice});
