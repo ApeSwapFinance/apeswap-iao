@@ -33,8 +33,8 @@ contract IAO is ReentrancyGuard, Initializable {
     address public adminAddress;
     // The raising token
     IERC20 public stakeToken;
-    // Flag if stake token is BNB
-    bool public isBNBStaking;
+    // Flag if stake token is native EVM token
+    bool public isNativeTokenStaking;
     // The offering token
     IERC20 public offeringToken;
     // The block number when IAO starts
@@ -75,9 +75,9 @@ contract IAO is ReentrancyGuard, Initializable {
       address _adminAddress
     ) external initializer {
         stakeToken = _stakeToken;
-        /// @dev address(0) turns this contract into a BNB staking pool
+        /// @dev address(0) turns this contract into a native token staking pool
         if(address(stakeToken) == address(0)) {
-            isBNBStaking = true;
+            isNativeTokenStaking = true;
         }
         offeringToken = _offeringToken;
         startBlock = _startBlock;
@@ -100,7 +100,7 @@ contract IAO is ReentrancyGuard, Initializable {
 
     modifier onlyActiveIAO() {
         require(
-            block.number > startBlock && block.number < endBlock,
+            block.number >= startBlock && block.number < endBlock,
             "not iao time"
         );
         _;
@@ -116,19 +116,21 @@ contract IAO is ReentrancyGuard, Initializable {
         raisingAmount = _raisingAmount;
     }
 
-    function depositBNB() external payable onlyActiveIAO {
-        require(isBNBStaking, 'stake token is not BNB');
+    /// @notice Deposits native EVM tokens into the IAO contract as per the value sent
+    ///   in the transaction.
+    function depositNative() external payable onlyActiveIAO {
+        require(isNativeTokenStaking, 'stake token is not native EVM token');
         require(msg.value > 0, 'value not > 0');
         depositInternal(msg.value);
     }
 
     /// @dev Deposit ERC20 tokens with support for reflect tokens
     function deposit(uint256 _amount) external onlyActiveIAO {
-        require(!isBNBStaking, "stake token is BNB, deposit through 'depositBNB'");
+        require(!isNativeTokenStaking, "stake token is native token, deposit through 'depositNative'");
         require(_amount > 0, "_amount not > 0");
         uint256 pre = getTotalStakeTokenBalance();
         stakeToken.safeTransferFrom(
-            address(msg.sender),
+            msg.sender,
             address(this),
             _amount
         );
@@ -136,12 +138,12 @@ contract IAO is ReentrancyGuard, Initializable {
         depositInternal(finalDepositAmount);
     }
 
-    /// @notice To support ERC20 and BNB deposits this function does not transfer
+    /// @notice To support ERC20 and native token deposits this function does not transfer
     ///  any tokens in, but only updates the state. Make sure to transfer in the funds
     ///  in a parent function
     function depositInternal(uint256 _amount) internal {
         if (userInfo[msg.sender].amount == 0) {
-            addressList.push(address(msg.sender));
+            addressList.push(msg.sender);
         }
         userInfo[msg.sender].amount += _amount;
         totalAmount += _amount;
@@ -158,11 +160,11 @@ contract IAO is ReentrancyGuard, Initializable {
         uint256 refundingTokenAmount = getRefundingAmount(msg.sender);
         if (refundingTokenAmount > 0) {
             userInfo[msg.sender].refunded = true;
-            safeTransferStakeInternal(address(msg.sender), refundingTokenAmount);
+            safeTransferStakeInternal(msg.sender, refundingTokenAmount);
         }
     
         uint256 offeringTokenAmountPerPeriod = getOfferingAmountPerPeriod(msg.sender);
-        offeringToken.safeTransfer(address(msg.sender), offeringTokenAmountPerPeriod);
+        offeringToken.safeTransfer(msg.sender, offeringTokenAmountPerPeriod);
 
         userInfo[msg.sender].claimed[harvestPeriod] = true;
         // Subtract user debt after refund on initial harvest
@@ -176,18 +178,24 @@ contract IAO is ReentrancyGuard, Initializable {
         return userInfo[_user].claimed[harvestPeriod];
     }
 
-    /**
-     * allocation: 
-     * 1e17 = 0.1 (10%)
-     * 1e18 = 1 (100%)
-     * 1 = 0.000000 000000 000001 (0.000000 000000 0001%)
-     */ 
+    /// @notice Calculate a users allocation based on the total amount deposited. This is done
+    ///  by first scaling the deposited amount and dividing by the total amount.
+    /// @param _user Address of the user allocation to look up
     function getUserAllocation(address _user) public view returns (uint256) {
-        return userInfo[_user].amount * 1e12 / totalAmount / 1e6;
+        // avoid division by zero
+        if(totalAmount == 0) {
+            return 0;
+        }
+
+        // allocation: 
+        // 1e6 = 100%
+        // 1e4 = 1%
+        // 1 = 0.0001%
+        return (userInfo[_user].amount * 1e12 / totalAmount) / 1e6;
     }
 
     function getTotalStakeTokenBalance() public view returns (uint256) {
-        if(isBNBStaking) {
+        if(isNativeTokenStaking) {
             return address(this).balance;
         } else {
             // Return ERC20 balance
@@ -195,11 +203,13 @@ contract IAO is ReentrancyGuard, Initializable {
         }
     }
 
-    // get the amount of IAO token you will get
+    /// @notice Calculate a user's offering amount to be received by multiplying the offering amount by
+    ///  the user allocation percentage.
+    /// @dev User allocation is scaled up by the ALLOCATION_PRECISION which is scaled down before returning a value.
+    /// @param _user Address of the user allocation to look up
     function getOfferingAmount(address _user) public view returns (uint256) {
         if (totalAmount > raisingAmount) {
-            uint256 allocation = getUserAllocation(_user);
-            return (offeringAmount * allocation) / 1e6;
+            return (offeringAmount * getUserAllocation(_user)) / 1e6;
         } else {
             // Return an offering amount equal to a proportion of the raising amount
             return (userInfo[_user].amount * offeringAmount) / raisingAmount;
@@ -211,18 +221,21 @@ contract IAO is ReentrancyGuard, Initializable {
         return getOfferingAmount(_user) / HARVEST_PERIODS;
     }
 
-    // get the amount of lp token you will be refunded
+    /// @notice Calculate a user's refunding amount to be received by multiplying the raising amount by
+    ///  the user allocation percentage.
+    /// @dev User allocation is scaled up by the ALLOCATION_PRECISION which is scaled down before returning a value.
+    /// @param _user Address of the user allocation to look up
     function getRefundingAmount(address _user) public view returns (uint256) {
         // Users are able to obtain their refund on the first harvest only
         if (totalAmount <= raisingAmount || userInfo[msg.sender].refunded == true) {
             return 0;
         }
-        uint256 allocation = getUserAllocation(_user);
-        uint256 payAmount = (raisingAmount * allocation) / 1e6;
+        uint256 payAmount = (raisingAmount * getUserAllocation(_user)) / 1e6;
         return userInfo[_user].amount - payAmount;
     }
 
-    // get the amount of IAO token you will get per harvest period
+    /// @notice Get the amount of tokens a user is eligible to receive based on current state. 
+    /// @param _user address of user to obtain token status 
     function userTokenStatus(address _user) 
         public 
         view 
@@ -265,31 +278,31 @@ contract IAO is ReentrancyGuard, Initializable {
             _offerAmount <= offeringToken.balanceOf(address(this)),
             "not enough offering token"
         );
-        safeTransferStakeInternal(address(msg.sender), _stakeTokenAmount);
-        offeringToken.safeTransfer(address(msg.sender), _offerAmount);
+        safeTransferStakeInternal(msg.sender, _stakeTokenAmount);
+        offeringToken.safeTransfer(msg.sender, _offerAmount);
     }
 
+    /// @notice Internal function to handle stake token transfers. Depending on the stake
+    ///   token type, this can transfer ERC-20 tokens or native EVM tokens. 
     /// @param _to address to send stake token to 
     /// @param _amount value of reward token to transfer
     function safeTransferStakeInternal(address _to, uint256 _amount) internal {
-        uint256 stakeBalance = getTotalStakeTokenBalance();
         require(
-            _amount <= stakeBalance,
+            _amount <= getTotalStakeTokenBalance(),
             "not enough stake token"
         );
 
-        if (isBNBStaking) {
-            // Transfer BNB to address
+        if (isNativeTokenStaking) {
+            // Transfer native token to address
             (bool success, ) = _to.call{gas: 23000, value: _amount}("");
-            require(success, "TransferHelper: BNB_TRANSFER_FAILED");
+            require(success, "TransferHelper: NATIVE_TRANSFER_FAILED");
         } else {
             // Transfer ERC20 to address
             IERC20(stakeToken).safeTransfer(_to, _amount);
         }
     }
 
-    /// @notice A public function to sweep accidental ERC20 transfers to this contract. 
-    ///   Tokens are sent to owner
+    /// @notice Sweep accidental ERC20 transfers to this contract. Can only be called by admin.
     /// @param token The address of the ERC20 token to sweep
     function sweepToken(IERC20 token) external onlyAdmin {
         require(address(token) != address(stakeToken), "can not sweep stake token");
