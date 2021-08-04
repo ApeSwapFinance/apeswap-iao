@@ -120,7 +120,7 @@ describe('IAO', function() {
     assert.equal((await this.offeringToken.balanceOf(this.iao.address)).toString(), ether('40000000'));
     assert.equal((await this.raisingToken.balanceOf(this.iao.address)).toString(), ether('600'));
     // final withdraw
-    await this.iao.finalWithdraw(ether('600'), ether('40000000'), {from: dev})
+    await this.iao.finalWithdraw({from: dev});
     assert.equal((await this.offeringToken.balanceOf(dev)).toString(), ether('40000000'));
     assert.equal((await this.raisingToken.balanceOf(dev)).toString(), ether('600'));
     assert.equal((await this.offeringToken.balanceOf(this.iao.address)).toString(), ether('0'));
@@ -174,6 +174,7 @@ describe('IAO', function() {
     assert.equal((await this.iao.getOfferingAmount(carol)).toString(), ether('50000000'));
     assert.equal((await this.iao.getOfferingAmount(bob)).toString(), ether('16666600'));
     assert.equal((await this.iao.getOfferingAmount(alice)).toString(), ether('33333300'));
+    assert.equal((await this.iao.getRefundingAmount(alice)).toString(), ether('266.667'));
     assert.equal((await this.iao.getRefundingAmount(carol)).toString(), ether('400'));
     assert.equal((await this.iao.getRefundingAmount(bob)).toString(), ether('133.334'));
     await expectRevert(
@@ -234,11 +235,10 @@ describe('IAO', function() {
     // 100 offering tokens are left due to rounding 
     assert.equal((await this.offeringToken.balanceOf(this.iao.address)).toString(), ether('100'));
     assert.equal((await this.raisingToken.balanceOf(this.iao.address)).toString(), ether('999.999'));
-    // final withdraw
-    await this.iao.finalWithdraw(ether('999.999'), ether('100'), {from: dev})
-    assert.equal((await this.offeringToken.balanceOf(dev)).toString(), ether('100'));
+    await this.iao.finalWithdraw({from: dev});
+    assert.equal((await this.offeringToken.balanceOf(dev)).toString(), ether('0'));
     assert.equal((await this.raisingToken.balanceOf(dev)).toString(), ether('999.999'));
-    assert.equal((await this.offeringToken.balanceOf(this.iao.address)).toString(), ether('0'));
+    assert.equal((await this.offeringToken.balanceOf(this.iao.address)).toString(), ether('100'));
     assert.equal((await this.raisingToken.balanceOf(this.iao.address)).toString(), ether('0'));
 
   })
@@ -364,7 +364,7 @@ describe('IAO', function() {
     assert.equal((await this.offeringToken.balanceOf(this.iao.address)).toString(), ether('0'));
     assert.equal((await this.raisingToken.balanceOf(this.iao.address)).toString(), ether('18'));
     // final withdraw
-    await this.iao.finalWithdraw(ether('18'), ether('0'), {from: dev})
+    await this.iao.finalWithdraw({from: dev});
     assert.equal((await this.offeringToken.balanceOf(dev)).toString(), ether('0'));
     assert.equal((await this.raisingToken.balanceOf(dev)).toString(), ether('18'));
     assert.equal((await this.offeringToken.balanceOf(this.iao.address)).toString(), ether('0'));

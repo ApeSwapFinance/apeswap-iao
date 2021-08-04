@@ -29,6 +29,10 @@ contract IAO is ReentrancyGuard, Initializable {
         bool refunded;
     }
 
+    // flag for admin induced failure
+    bool public adminFailure = false;
+    // flag for final admin withdraw
+    bool public adminWithdraw = false;
     // admin address
     address public adminAddress;
     // The raising token
@@ -56,12 +60,11 @@ contract IAO is ReentrancyGuard, Initializable {
     
 
     event Deposit(address indexed user, uint256 amount);
-    event Harvest(
-        address indexed user,
-        uint256 offeringAmount,
-        uint256 excessAmount
-    );
-    event EmergencySweepWithdraw(address indexed receiver, address indexed token, uint256 balance);
+    event Harvest(address indexed user, uint256 offeringAmount);
+    event Refund(address indexed user, uint256 refundAmount);
+    event AdminWithdraw(uint256 offeringAmount, uint256 raisingAmount);
+    event AdminFailure();
+    event SweepWithdraw(address indexed receiver, address indexed token, uint256 balance);
 
 
     function initialize(
@@ -153,25 +156,35 @@ contract IAO is ReentrancyGuard, Initializable {
 
     function harvest(uint256 harvestPeriod) external nonReentrant {
         require(harvestPeriod < HARVEST_PERIODS, "harvest period out of range");
-        require(block.number > harvestReleaseBlocks[harvestPeriod], "not harvest time");
+        require(
+            // Only allow harvests after the harvest block
+            (!adminFailure && block.number > harvestReleaseBlocks[harvestPeriod]) || 
+            // If admin fails the IAO then the user can obtain a refund on the first period
+            (adminFailure && harvestPeriod == 0), 
+            "not harvest time"
+        );
         require(userInfo[msg.sender].amount > 0, "have you participated?");
         require(!userInfo[msg.sender].claimed[harvestPeriod], "harvest for period already claimed");
-        // Refunds are only given on the first harvest
-        uint256 refundingTokenAmount = getRefundingAmount(msg.sender);
-        if (refundingTokenAmount > 0) {
-            userInfo[msg.sender].refunded = true;
-            safeTransferStakeInternal(msg.sender, refundingTokenAmount);
-        }
-    
-        uint256 offeringTokenAmountPerPeriod = getOfferingAmountPerPeriod(msg.sender);
-        offeringToken.safeTransfer(msg.sender, offeringTokenAmountPerPeriod);
-
+        
         userInfo[msg.sender].claimed[harvestPeriod] = true;
         // Subtract user debt after refund on initial harvest
         if(harvestPeriod == 0) {
             totalDebt -= userInfo[msg.sender].amount;
         }
-        emit Harvest(msg.sender, offeringTokenAmountPerPeriod, refundingTokenAmount);
+        
+        // Refunds are only given on the first harvest
+        uint256 refundingTokenAmount = getRefundingAmount(msg.sender);
+        if (refundingTokenAmount > 0) {
+            userInfo[msg.sender].refunded = true;
+            uint256 refundAmount = safeTransferStakeInternal(msg.sender, refundingTokenAmount);
+            emit Refund(msg.sender, refundAmount);
+        }
+    
+        uint256 offeringTokenAmountPerPeriod = getOfferingAmountPerPeriod(msg.sender);
+        if (offeringTokenAmountPerPeriod > 0) {
+            offeringToken.safeTransfer(msg.sender, offeringTokenAmountPerPeriod);
+        }
+        emit Harvest(msg.sender, offeringTokenAmountPerPeriod);
     }
 
     function hasHarvested(address _user, uint256 harvestPeriod) external view returns (bool) {
@@ -205,9 +218,14 @@ contract IAO is ReentrancyGuard, Initializable {
 
     /// @notice Calculate a user's offering amount to be received by multiplying the offering amount by
     ///  the user allocation percentage.
-    /// @dev User allocation is scaled up by the ALLOCATION_PRECISION which is scaled down before returning a value.
+    /// @dev User allocation is scaled up by an exponent which is scaled down before returning a value.
     /// @param _user Address of the user allocation to look up
     function getOfferingAmount(address _user) public view returns (uint256) {
+        if(adminFailure) {
+            // if the iao has been manually failed then no offering tokens are returned
+            return 0;
+        }
+
         if (totalAmount > raisingAmount) {
             return (offeringAmount * getUserAllocation(_user)) / 1e6;
         } else {
@@ -227,9 +245,20 @@ contract IAO is ReentrancyGuard, Initializable {
     /// @param _user Address of the user allocation to look up
     function getRefundingAmount(address _user) public view returns (uint256) {
         // Users are able to obtain their refund on the first harvest only
-        if (totalAmount <= raisingAmount || userInfo[msg.sender].refunded == true) {
+        if(userInfo[msg.sender].refunded == true) {
             return 0;
         }
+
+        if(adminFailure) {
+            // if the iao has been manually failed then all raising tokens are returned
+            return userInfo[_user].amount;
+        }
+
+        if (totalAmount <= raisingAmount) {
+            return 0;
+        }
+
+        // Adding 1 extra to account for rounding errors
         uint256 payAmount = (raisingAmount * getUserAllocation(_user)) / 1e6;
         return userInfo[_user].amount - payAmount;
     }
@@ -246,7 +275,7 @@ contract IAO is ReentrancyGuard, Initializable {
         ) 
     {
         uint256 currentBlock = block.number;
-        if(currentBlock < endBlock) {
+        if(!adminFailure && currentBlock < endBlock) {
             return (0,0,0); 
         }
 
@@ -269,36 +298,67 @@ contract IAO is ReentrancyGuard, Initializable {
     function getAddressListLength() external view returns (uint256) {
         return addressList.length;
     }
-
-    function finalWithdraw(uint256 _stakeTokenAmount, uint256 _offerAmount)
+    
+    /// @notice Call to change the IAO status to failed. 
+    /// @dev Can only be called by admin
+    function failIAO()
         external
         onlyAdmin
     {
-        require(
-            _offerAmount <= offeringToken.balanceOf(address(this)),
-            "not enough offering token"
-        );
-        safeTransferStakeInternal(msg.sender, _stakeTokenAmount);
-        offeringToken.safeTransfer(msg.sender, _offerAmount);
+        require(block.number < endBlock, "cannot fail after endBlock");
+        adminFailure = true;
+        emit AdminFailure();
+    }
+
+    function finalWithdraw()
+        external
+        onlyAdmin
+    {
+        require(adminFailure || block.number >= endBlock, "not withdraw time");
+        require(!adminWithdraw, "admin has already withdrawn");
+        adminWithdraw = true;
+
+        if(adminFailure) {
+            // On IAO failure all offering tokens should be returned
+            uint256 offeringBalance = offeringToken.balanceOf(address(this));
+            offeringToken.safeTransfer(msg.sender, offeringBalance);
+            emit AdminWithdraw(offeringBalance, 0);
+        } else {
+            // handle undersubscription
+            if (totalAmount < raisingAmount) { // handle undersubscription
+                uint256 allocation = totalAmount * 1e6 / raisingAmount;
+                uint256 offeringTokensLeft = offeringAmount - (offeringAmount * allocation / 1e6);
+                // transfer offer token difference
+                offeringToken.safeTransfer(msg.sender, offeringTokensLeft);
+                // Transfer the stake amount that was raised
+                safeTransferStakeInternal(msg.sender, totalAmount);
+                emit AdminWithdraw(offeringTokensLeft, totalAmount);
+            // handle oversubscription
+            } else {
+                // transfer raise amount
+                uint256 allowedTransfer = safeTransferStakeInternal(msg.sender, raisingAmount);
+                emit AdminWithdraw(0, allowedTransfer);
+            }
+        }
     }
 
     /// @notice Internal function to handle stake token transfers. Depending on the stake
     ///   token type, this can transfer ERC-20 tokens or native EVM tokens. 
     /// @param _to address to send stake token to 
     /// @param _amount value of reward token to transfer
-    function safeTransferStakeInternal(address _to, uint256 _amount) internal {
-        require(
-            _amount <= getTotalStakeTokenBalance(),
-            "not enough stake token"
-        );
+    function safeTransferStakeInternal(address _to, uint256 _amount) internal returns (uint256 allowedTransfer){
+        allowedTransfer = _amount;
+        if(_amount > getTotalStakeTokenBalance()) {
+            allowedTransfer = getTotalStakeTokenBalance();
+        }
 
         if (isNativeTokenStaking) {
             // Transfer native token to address
-            (bool success, ) = _to.call{gas: 23000, value: _amount}("");
+            (bool success, ) = _to.call{gas: 23000, value: allowedTransfer}("");
             require(success, "TransferHelper: NATIVE_TRANSFER_FAILED");
         } else {
             // Transfer ERC20 to address
-            IERC20(stakeToken).safeTransfer(_to, _amount);
+            IERC20(stakeToken).safeTransfer(_to, allowedTransfer);
         }
     }
 
@@ -309,6 +369,6 @@ contract IAO is ReentrancyGuard, Initializable {
         require(address(token) != address(offeringToken), "can not sweep offering token");
         uint256 balance = token.balanceOf(address(this));
         token.safeTransfer(msg.sender, balance);
-        emit EmergencySweepWithdraw(msg.sender, address(token), balance);
+        emit SweepWithdraw(msg.sender, address(token), balance);
     }
 }
