@@ -1,13 +1,17 @@
 const IAO = artifacts.require("IAO");
 const IAOUpgradeProxy = artifacts.require("IAOUpgradeProxy");
+const ethers = require('ethers');
 const { ether } = require('@openzeppelin/test-helpers');
 const { getNetworkConfig } = require('../deploy-config')
 
-const Web3 = require('web3');
-const web3 = new Web3(new Web3.providers.HttpProvider('https://bsc-dataseed.binance.org'));
 
 module.exports = async function (deployer, network, accounts) {
-  const { adminAddress, proxyAdminAddress } = getNetworkConfig(network, accounts);
+  const { adminAddress, proxyAdminAddress, rpcProvider } = getNetworkConfig(network, accounts);
+  // Find current block
+  const provider = new ethers.providers.JsonRpcProvider(rpcProvider);
+  let block = await provider.getBlock('latest');
+  // Set a start block offset
+  const startBlock = block.number + 1200;
 
   const deployments = [
     // {
@@ -20,11 +24,12 @@ module.exports = async function (deployer, network, accounts) {
     //   raisingAmount: '', // 
     // },
   ]
-
+  // Array to hold contract deployment information
   let deploymentOutput = [];
+  // Deploy single implementation contract
+  await deployer.deploy(IAO);
 
   for (const deployment of deployments) {
-    await deployer.deploy(IAO);
 
     const abiEncodeData = web3.eth.abi.encodeFunctionCall({
       "inputs": [
@@ -89,7 +94,8 @@ module.exports = async function (deployer, network, accounts) {
     deploymentOutput.push({
       IAOUpgradeProxy: IAOUpgradeProxy.address,
       IAO: IAO.address,
-      proxyAdminAddress
+      startBlock: deployment.startBlock,
+      proxyAdminAddress,
     });
   }
   // log deployments
