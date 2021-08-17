@@ -227,7 +227,7 @@ contract IAO is ReentrancyGuard, Initializable {
     /// @param _user Address of the user allocation to look up
     function getRefundingAmount(address _user) public view returns (uint256) {
         // Users are able to obtain their refund on the first harvest only
-        if (totalAmount <= raisingAmount || userInfo[msg.sender].refunded == true) {
+        if (totalAmount <= raisingAmount || userInfo[_user].refunded == true) {
             return 0;
         }
         uint256 payAmount = (raisingAmount * getUserAllocation(_user)) / 1e6;
