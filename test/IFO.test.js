@@ -1,54 +1,73 @@
-const { expectRevert, time } = require('@openzeppelin/test-helpers');
-const MockBEP20 = artifacts.require('MockBEP20');
-const IFO = artifacts.require('IFO');
+const { expectRevert, time, ether } = require('@openzeppelin/test-helpers');
+const { accounts, contract } = require('@openzeppelin/test-environment');
+const { expect, assert } = require('chai');
 
-contract('IFO', ([alice, bob, carol, dev, minter]) => {
+// Load compiled artifacts
+const IFO = contract.fromArtifact('IFO');
+const MockBEP20 = contract.fromArtifact('MockBEP20');
+
+describe('IFO', function() {
+  const OFFERING_AMOUNT = '100000000'
+  const RAISING_AMOUNT = '1000'
+  // Set timeout
+  // NOTE: This is required because advanceBlockTo takes time
+  this.timeout(20000);
+
+  const [minter, dev, alice, bob, carol] = accounts;
   beforeEach(async () => {
-    this.lp = await MockBEP20.new('LPToken', 'LP1', '1000000', { from: minter });
-    this.ifoToken = await MockBEP20.new('WOW', 'WOW', '1000000', { from: minter });
+    this.raisingToken = await MockBEP20.new('LPToken', 'LP1', ether(RAISING_AMOUNT + '000000'), { from: minter });
+    this.offeringToken = await MockBEP20.new('WOW', 'WOW', ether(OFFERING_AMOUNT + '000000'), { from: minter });
 
-    await this.lp.transfer(bob, '10', { from: minter });
-    await this.lp.transfer(alice, '10', { from: minter });
-    await this.lp.transfer(carol, '10', { from: minter });
+    await this.raisingToken.transfer(bob, ether('1000'), { from: minter });
+    await this.raisingToken.transfer(alice, ether('1000'), { from: minter });
+    await this.raisingToken.transfer(carol, ether('1000'), { from: minter });
   });
 
   it('raise not enough lp', async () => {
-    // 10 lp raising, 100 ifo to offer
-    this.ifo = await IFO.new(this.lp.address, this.ifoToken.address, '20', '30', '100', '10', alice, { from: minter });
-    await this.ifoToken.transfer(this.ifo.address, '100', { from: minter });
+    this.iao = await IFO.new(
+      this.raisingToken.address, 
+      this.offeringToken.address, 
+      '1020', 
+      '1030', 
+      ether(OFFERING_AMOUNT), // offering amount
+      ether(RAISING_AMOUNT),  // raising amount
+      dev, 
+      { from: minter }
+    );
+    await this.offeringToken.transfer(this.iao.address, ether(OFFERING_AMOUNT), { from: minter });
 
-    await this.lp.approve(this.ifo.address, '1000', { from: alice });
-    await this.lp.approve(this.ifo.address, '1000', { from: bob });
-    await this.lp.approve(this.ifo.address, '1000', { from: carol });
+    await this.raisingToken.approve(this.iao.address, ether('100'), { from: bob });
+    await this.raisingToken.approve(this.iao.address, ether('200'), { from: alice });
+    await this.raisingToken.approve(this.iao.address, ether('300'), { from: carol });
     await expectRevert(
-      this.ifo.deposit('1', {from: bob}),
+      this.iao.deposit(ether('1'), {from: bob}),
       'not ifo time',
     );
 
-    await time.advanceBlockTo('20');
+    await time.advanceBlockTo('1020');
 
-    await this.ifo.deposit('1', {from: bob});
-    await this.ifo.deposit('2', {from: alice});
-    await this.ifo.deposit('3', {from: carol});
-    assert.equal((await this.ifo.totalAmount()).toString(), '6');
-    assert.equal((await this.ifo.getUserAllocation(carol)).toString(), '500000');
-    assert.equal((await this.ifo.getUserAllocation(alice)).toString(), '333333');
-    assert.equal((await this.ifo.getOfferingAmount(carol)).toString(), '30');
-    assert.equal((await this.ifo.getOfferingAmount(bob)).toString(), '10');
-    assert.equal((await this.ifo.getRefundingAmount(bob)).toString(), '0');
+    await this.iao.deposit(ether('100'), {from: bob});
+    await this.iao.deposit(ether('200'), {from: alice});
+    await this.iao.deposit(ether('300'), {from: carol});
+    assert.equal((await this.iao.totalAmount()).toString(), ether('600'));
+    assert.equal((await this.iao.getUserAllocation(carol)).toString(), '500000000000000000');
+    assert.equal((await this.iao.getUserAllocation(alice)).toString(), '333333333333333333');
+    assert.equal((await this.iao.getOfferingAmount(carol)).toString(), ether('30000000'));
+    assert.equal((await this.iao.getOfferingAmount(bob)).toString(), ether('10000000'));
+    assert.equal((await this.iao.getRefundingAmount(bob)).toString(), ether('0'));
     await expectRevert(
-      this.ifo.harvest({from: bob}),
+      this.iao.harvest({from: bob}),
       'not harvest time',
     );
 
-    await time.advanceBlockTo('30');
-    assert.equal((await this.lp.balanceOf(carol)).toString(), '7');
-    assert.equal((await this.ifoToken.balanceOf(carol)).toString(), '0');
-    await this.ifo.harvest({from: carol});
-    assert.equal((await this.lp.balanceOf(carol)).toString(), '7');
-    assert.equal((await this.ifoToken.balanceOf(carol)).toString(), '30');
+    await time.advanceBlockTo('1030');
+    assert.equal((await this.raisingToken.balanceOf(carol)).toString(), ether('700'));
+    assert.equal((await this.offeringToken.balanceOf(carol)).toString(), '0');
+    await this.iao.harvest({from: carol});
+    assert.equal((await this.raisingToken.balanceOf(carol)).toString(), ether('700'));
+    assert.equal((await this.offeringToken.balanceOf(carol)).toString(), ether('30000000'));
     await expectRevert(
-      this.ifo.harvest({from: carol}),
+      this.iao.harvest({from: carol}),
       'nothing to harvest',
     );
 
@@ -56,107 +75,125 @@ contract('IFO', ([alice, bob, carol, dev, minter]) => {
 
   it('raise enough++ lp', async () => {
     // 10 lp raising, 100 ifo to offer
-    this.ifo = await IFO.new(this.lp.address, this.ifoToken.address, '50', '100', '100', '10', alice, { from: minter });
-    await this.ifoToken.transfer(this.ifo.address, '100', { from: minter });
+    this.iao = await IFO.new(
+      this.raisingToken.address, 
+      this.offeringToken.address, 
+      '1050', 
+      '1100', 
+      ether(OFFERING_AMOUNT), 
+      ether(RAISING_AMOUNT), 
+      dev, 
+      { from: minter }
+    );
+    await this.offeringToken.transfer(this.iao.address, ether(OFFERING_AMOUNT), { from: minter });
 
-    await this.lp.approve(this.ifo.address, '1000', { from: alice });
-    await this.lp.approve(this.ifo.address, '1000', { from: bob });
-    await this.lp.approve(this.ifo.address, '1000', { from: carol });
+    await this.raisingToken.approve(this.iao.address, ether('1000'), { from: alice });
+    await this.raisingToken.approve(this.iao.address, ether('1000'), { from: bob });
+    await this.raisingToken.approve(this.iao.address, ether('1000'), { from: carol });
     await expectRevert(
-      this.ifo.deposit('1', {from: bob}),
+      this.iao.deposit(ether('1'), {from: bob}),
       'not ifo time',
     );
 
-    await time.advanceBlockTo('50');
+    await time.advanceBlockTo('1050');
 
-    await this.ifo.deposit('1', {from: bob});
-    await this.ifo.deposit('2', {from: alice});
-    await this.ifo.deposit('3', {from: carol});
-    await this.ifo.deposit('1', {from: bob});
-    await this.ifo.deposit('2', {from: alice});
-    await this.ifo.deposit('3', {from: carol});
-    await this.ifo.deposit('1', {from: bob});
-    await this.ifo.deposit('2', {from: alice});
-    await this.ifo.deposit('3', {from: carol});
-    assert.equal((await this.ifo.totalAmount()).toString(), '18');
-    assert.equal((await this.ifo.getUserAllocation(carol)).toString(), '500000');
-    assert.equal((await this.ifo.getUserAllocation(alice)).toString(), '333333');
-    assert.equal((await this.ifo.getOfferingAmount(carol)).toString(), '50');
-    assert.equal((await this.ifo.getOfferingAmount(bob)).toString(), '16');
-    assert.equal((await this.ifo.getRefundingAmount(carol)).toString(), '4');
-    assert.equal((await this.ifo.getRefundingAmount(bob)).toString(), '2');
+    await this.iao.deposit(ether('100'), {from: bob});
+    await this.iao.deposit(ether('200'), {from: alice});
+    await this.iao.deposit(ether('300'), {from: carol});
+    await this.iao.deposit(ether('100'), {from: bob});
+    await this.iao.deposit(ether('100'), {from: bob});
+    await this.iao.deposit(ether('200'), {from: alice});
+    await this.iao.deposit(ether('300'), {from: carol});
+    await this.iao.deposit(ether('200'), {from: alice});
+    await this.iao.deposit(ether('300'), {from: carol});
+    assert.equal((await this.iao.totalAmount()).toString(), ether('1800'));
+    assert.equal((await this.iao.getUserAllocation(carol)).toString(), '500000000000000000');
+    assert.equal((await this.iao.getUserAllocation(alice)).toString(), '333333333333333333');
+    assert.equal((await this.iao.getOfferingAmount(carol)).toString(), ether('50000000'));
+    assert.equal((await this.iao.getOfferingAmount(bob)).toString(), ether('16666666.666666666600000000'));
+    assert.equal((await this.iao.getRefundingAmount(carol)).toString(), ether('400'));
+    assert.equal((await this.iao.getRefundingAmount(bob)).toString(), ether('133.333333333333334000'));
     await expectRevert(
-      this.ifo.harvest({from: bob}),
+      this.iao.harvest({from: bob}),
       'not harvest time',
     );
-    assert.equal((await this.ifo.totalAmount()).toString(), '18');
+    assert.equal((await this.iao.totalAmount()).toString(), ether('1800'));
 
-    await time.advanceBlockTo('100');
-    assert.equal((await this.lp.balanceOf(carol)).toString(), '1');
-    assert.equal((await this.ifoToken.balanceOf(carol)).toString(), '0');
-    await this.ifo.harvest({from: carol});
-    assert.equal((await this.lp.balanceOf(carol)).toString(), '5');
-    assert.equal((await this.ifoToken.balanceOf(carol)).toString(), '50');
+    await time.advanceBlockTo('1100');
+    assert.equal((await this.raisingToken.balanceOf(carol)).toString(), ether('100'));
+    assert.equal((await this.offeringToken.balanceOf(carol)).toString(), '0');
+    await this.iao.harvest({from: carol});
+    assert.equal((await this.raisingToken.balanceOf(carol)).toString(), ether('500'));
+    assert.equal((await this.offeringToken.balanceOf(carol)).toString(), ether('50000000'));
     await expectRevert(
-      this.ifo.harvest({from: carol}),
+      this.iao.harvest({from: carol}),
       'nothing to harvest',
     );
-    assert.equal((await this.ifo.hasHarvest(carol)).toString(), 'true');
-    assert.equal((await this.ifo.hasHarvest(bob)).toString(), 'false');
+    assert.equal((await this.iao.hasHarvest(carol)).toString(), 'true');
+    assert.equal((await this.iao.hasHarvest(bob)).toString(), 'false');
 
   })
 
   it('raise enough lp', async () => {
     // 10 lp raising, 100 ifo to offer
-    this.ifo = await IFO.new(this.lp.address, this.ifoToken.address, '120', '170', '18', '18', alice, { from: minter });
-    await this.ifoToken.transfer(this.ifo.address, '100', { from: minter });
+    this.iao = await IFO.new(
+      this.raisingToken.address, 
+      this.offeringToken.address, 
+      '1120', 
+      '1170', 
+      ether('18'), 
+      ether('18'), 
+      alice, 
+      { from: minter }
+    );
+    await this.offeringToken.transfer(this.iao.address, ether('100'), { from: minter });
 
-    await this.lp.approve(this.ifo.address, '1000', { from: alice });
-    await this.lp.approve(this.ifo.address, '1000', { from: bob });
-    await this.lp.approve(this.ifo.address, '1000', { from: carol });
+    await this.raisingToken.approve(this.iao.address, ether('1000'), { from: alice });
+    await this.raisingToken.approve(this.iao.address, ether('1000'), { from: bob });
+    await this.raisingToken.approve(this.iao.address, ether('1000'), { from: carol });
     await expectRevert(
-      this.ifo.deposit('1', {from: bob}),
+      this.iao.deposit('1', {from: bob}),
       'not ifo time',
     );
 
-    await time.advanceBlockTo('120');
+    await time.advanceBlockTo('1120');
 
-    await this.ifo.deposit('1', {from: bob});
-    await this.ifo.deposit('2', {from: alice});
-    await this.ifo.deposit('3', {from: carol});
-    await this.ifo.deposit('1', {from: bob});
-    await this.ifo.deposit('2', {from: alice});
-    await this.ifo.deposit('3', {from: carol});
-    await this.ifo.deposit('1', {from: bob});
-    await this.ifo.deposit('2', {from: alice});
-    await this.ifo.deposit('3', {from: carol});
-    assert.equal((await this.ifo.totalAmount()).toString(), '18');
-    assert.equal((await this.ifo.getUserAllocation(carol)).toString(), '500000');
-    assert.equal((await this.ifo.getUserAllocation(alice)).toString(), '333333');
-    assert.equal((await this.ifo.getOfferingAmount(carol)).toString(), '9');
-    assert.equal((await this.ifo.getOfferingAmount(minter)).toString(), '0');
-    assert.equal((await this.ifo.getOfferingAmount(bob)).toString(), '3');
-    assert.equal((await this.ifo.getRefundingAmount(carol)).toString(), '0');
-    assert.equal((await this.ifo.getRefundingAmount(bob)).toString(), '0');
+    await this.iao.deposit(ether('1'), {from: bob});
+    await this.iao.deposit(ether('2'), {from: alice});
+    await this.iao.deposit(ether('3'), {from: carol});
+    await this.iao.deposit(ether('1'), {from: bob});
+    await this.iao.deposit(ether('2'), {from: alice});
+    await this.iao.deposit(ether('3'), {from: carol});
+    await this.iao.deposit(ether('1'), {from: bob});
+    await this.iao.deposit(ether('2'), {from: alice});
+    await this.iao.deposit(ether('3'), {from: carol});
+    assert.equal((await this.iao.totalAmount()).toString(), ether('18'));
+    assert.equal((await this.iao.getUserAllocation(carol)).toString(), '500000000000000000');
+    assert.equal((await this.iao.getUserAllocation(alice)).toString(), '333333333333333333');
+    assert.equal((await this.iao.getOfferingAmount(carol)).toString(), ether('9'));
+    assert.equal((await this.iao.getOfferingAmount(minter)).toString(), ether('0'));
+    assert.equal((await this.iao.getOfferingAmount(bob)).toString(), ether('3'));
+    assert.equal((await this.iao.getRefundingAmount(carol)).toString(), ether('0'));
+    assert.equal((await this.iao.getRefundingAmount(bob)).toString(), ether('0'));
     await expectRevert(
-      this.ifo.harvest({from: bob}),
+      this.iao.harvest({from: bob}),
       'not harvest time',
     );
-    assert.equal((await this.ifo.totalAmount()).toString(), '18');
+    assert.equal((await this.iao.totalAmount()).toString(), ether('18'));
 
-    await time.advanceBlockTo('170');
-    assert.equal((await this.lp.balanceOf(carol)).toString(), '1');
-    assert.equal((await this.ifoToken.balanceOf(carol)).toString(), '0');
-    await this.ifo.harvest({from: carol});
-    assert.equal((await this.lp.balanceOf(carol)).toString(), '1');
-    assert.equal((await this.ifoToken.balanceOf(carol)).toString(), '9');
+    await time.advanceBlockTo('1170');
+    assert.equal((await this.raisingToken.balanceOf(carol)).toString(), ether('991'));
+    assert.equal((await this.offeringToken.balanceOf(carol)).toString(), '0');
+    await this.iao.harvest({from: carol});
+    assert.equal((await this.raisingToken.balanceOf(carol)).toString(), ether('991'));
+    assert.equal((await this.offeringToken.balanceOf(carol)).toString(), ether('9'));
     await expectRevert(
-      this.ifo.harvest({from: carol}),
+      this.iao.harvest({from: carol}),
       'nothing to harvest',
     );
-    assert.equal((await this.ifo.hasHarvest(carol)).toString(), 'true');
-    assert.equal((await this.ifo.hasHarvest(bob)).toString(), 'false');
-    assert.equal((await this.ifo.getAddressListLength()).toString(), '3');
+    assert.equal((await this.iao.hasHarvest(carol)).toString(), 'true');
+    assert.equal((await this.iao.hasHarvest(bob)).toString(), 'false');
+    assert.equal((await this.iao.getAddressListLength()).toString(), '3');
 
   })
 });
