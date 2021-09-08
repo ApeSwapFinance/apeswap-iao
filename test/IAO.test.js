@@ -1,4 +1,4 @@
-const { expectRevert, time, ether } = require('@openzeppelin/test-helpers');
+const { expectRevert, time, ether, BN } = require('@openzeppelin/test-helpers');
 const { accounts, contract } = require('@openzeppelin/test-environment');
 const { expect, assert } = require('chai');
 
@@ -18,18 +18,21 @@ describe('IAO', function() {
     this.raisingToken = await MockERC20.new('LPToken', 'LP1', ether(RAISING_AMOUNT + '000000'), { from: minter });
     this.offeringToken = await MockERC20.new('WOW', 'WOW', ether(OFFERING_AMOUNT + '000000'), { from: minter });
 
-    await this.raisingToken.transfer(bob, ether('1000'), { from: minter });
-    await this.raisingToken.transfer(alice, ether('1000'), { from: minter });
-    await this.raisingToken.transfer(carol, ether('1000'), { from: minter });
+    await this.raisingToken.transfer(bob, ether(RAISING_AMOUNT), { from: minter });
+    await this.raisingToken.transfer(alice, ether(RAISING_AMOUNT), { from: minter });
+    await this.raisingToken.transfer(carol, ether(RAISING_AMOUNT), { from: minter });
   });
 
   it('raise not enough lp', async () => {
+    const START_BLOCK = new BN(20);
+    const IAO_LENGTH = new BN(10);
     this.iao = await IAO.new();
+
     await this.iao.initialize(
       this.raisingToken.address, 
       this.offeringToken.address, 
-      '20', 
-      '10',
+      START_BLOCK, 
+      IAO_LENGTH,
       '10',
       ether(OFFERING_AMOUNT), // offering amount
       ether(RAISING_AMOUNT),  // raising amount
@@ -37,7 +40,7 @@ describe('IAO', function() {
       { from: minter }
     );
 
-    assert.equal((await this.iao.harvestReleaseBlocks(0)).toString(), '30');
+    assert.equal((await this.iao.harvestReleaseBlocks(0)).toString(), START_BLOCK.add(IAO_LENGTH));
     assert.equal((await this.iao.harvestReleaseBlocks(1)).toString(), '40');
     assert.equal((await this.iao.harvestReleaseBlocks(2)).toString(), '50');
     assert.equal((await this.iao.harvestReleaseBlocks(3)).toString(), '60');
@@ -52,7 +55,7 @@ describe('IAO', function() {
       'not iao time',
     );
 
-    await time.advanceBlockTo('20');
+    await time.advanceBlockTo(START_BLOCK);
 
     await this.iao.deposit(ether('100'), {from: bob});
     await this.iao.deposit(ether('200'), {from: alice});
@@ -367,6 +370,115 @@ describe('IAO', function() {
     await this.iao.finalWithdraw(ether('18'), ether('0'), {from: dev})
     assert.equal((await this.offeringToken.balanceOf(dev)).toString(), ether('0'));
     assert.equal((await this.raisingToken.balanceOf(dev)).toString(), ether('18'));
+    assert.equal((await this.offeringToken.balanceOf(this.iao.address)).toString(), ether('0'));
+    assert.equal((await this.raisingToken.balanceOf(this.iao.address)).toString(), ether('0'));
+
+  })
+
+  it('should handle allocations <1/1e6 when enough++ lp is raised', async () => {
+    const BIG_RAISING_AMOUNT = '1000000';
+    await this.raisingToken.transfer(bob, ether(BIG_RAISING_AMOUNT), { from: minter });
+    await this.raisingToken.transfer(alice, ether(BIG_RAISING_AMOUNT), { from: minter });
+    await this.raisingToken.transfer(carol, ether(BIG_RAISING_AMOUNT), { from: minter });
+
+
+    this.iao = await IAO.new();
+    await this.iao.initialize(
+      this.raisingToken.address, 
+      this.offeringToken.address, 
+      '400', 
+      '50',
+      '10',
+      ether(OFFERING_AMOUNT), // offering amount 
+      ether(BIG_RAISING_AMOUNT),  // raising amount
+      dev, 
+      { from: minter }
+    );
+
+    assert.equal((await this.iao.harvestReleaseBlocks(0)).toString(), '450');
+    assert.equal((await this.iao.harvestReleaseBlocks(1)).toString(), '460');
+    assert.equal((await this.iao.harvestReleaseBlocks(2)).toString(), '470');
+    assert.equal((await this.iao.harvestReleaseBlocks(3)).toString(), '480');
+
+
+    await this.offeringToken.transfer(this.iao.address, ether(OFFERING_AMOUNT), { from: minter });
+
+    await this.raisingToken.approve(this.iao.address, ether(BIG_RAISING_AMOUNT), { from: alice });
+    await this.raisingToken.approve(this.iao.address, ether(BIG_RAISING_AMOUNT), { from: bob });
+    await this.raisingToken.approve(this.iao.address, ether('1'), { from: carol });
+    await expectRevert(
+      this.iao.deposit(ether('1'), {from: bob}),
+      'not iao time',
+    );
+
+    await time.advanceBlockTo('400');
+
+    await this.iao.deposit(ether(BIG_RAISING_AMOUNT), {from: bob});
+    await this.iao.deposit(ether(BIG_RAISING_AMOUNT), {from: alice});
+    // NOTE: Check this user's allocation when less than 1/1e6 of the total allocation
+    await this.iao.deposit(ether('1'), {from: carol}); // Low deposit
+    // check allocations
+    assert.equal((await this.iao.totalAmount()).toString(), ether(BIG_RAISING_AMOUNT).add(ether(BIG_RAISING_AMOUNT)).add(ether('1')));
+    assert.equal((await this.iao.getUserAllocation(alice)).toString(), '499999');
+    assert.equal((await this.iao.getUserAllocation(bob)).toString(), '499999');
+    assert.equal((await this.iao.getUserAllocation(carol)).toString(), '0');
+    // check offering amounts
+    assert.equal((await this.iao.getOfferingAmount(alice)).toString(), ether('49999900'));
+    assert.equal((await this.iao.getOfferingAmount(bob)).toString(), ether('49999900'));
+    assert.equal((await this.iao.getOfferingAmount(carol)).toString(), ether('0'));
+    // check refunding amount
+    assert.equal((await this.iao.getRefundingAmount(alice)).toString(), ether('500001'));
+    assert.equal((await this.iao.getRefundingAmount(bob)).toString(), ether('500001'));
+    assert.equal((await this.iao.getRefundingAmount(carol)).toString(), ether('1'));
+    await expectRevert(
+      this.iao.harvest(0, {from: bob}),
+      'not harvest time',
+    );
+    assert.equal((await this.iao.totalAmount()).toString(), ether(BIG_RAISING_AMOUNT).add(ether(BIG_RAISING_AMOUNT)).add(ether('1')));
+
+    // Test each harvest period
+    for (let harvestPeriod = 0; harvestPeriod < 4; harvestPeriod++) {
+      await time.advanceBlockTo((await this.iao.harvestReleaseBlocks(harvestPeriod)).toString());
+      
+      // check that user cannot deposit during outside of active states
+      await expectRevert(
+        this.iao.deposit('1', {from: carol}),
+        'not iao time',
+      );
+
+      // Harvest bob
+      await this.iao.harvest(harvestPeriod, {from: bob});
+      await expectRevert(
+        this.iao.harvest(harvestPeriod, {from: bob}),
+        'harvest for period already claimed',
+      );
+
+      // Harvest alice
+      await this.iao.harvest(harvestPeriod, {from: alice});
+      await expectRevert(
+        this.iao.harvest(harvestPeriod, {from: alice}),
+        'harvest for period already claimed',
+      );
+
+      // Harvest
+      await this.iao.harvest(harvestPeriod, {from: carol});
+      await expectRevert(
+        this.iao.harvest(harvestPeriod, {from: carol}),
+        'harvest for period already claimed',
+      );
+
+      assert.equal((await this.iao.hasHarvested(carol, harvestPeriod)).toString(), 'true');
+      assert.equal((await this.iao.hasHarvested(bob, harvestPeriod)).toString(), 'true');
+      assert.equal((await this.iao.hasHarvested(alice, harvestPeriod)).toString(), 'true');
+    }
+
+    // 200 offering tokens are left due to rounding 
+    assert.equal((await this.offeringToken.balanceOf(this.iao.address)).toString(), ether('200'));
+    assert.equal((await this.raisingToken.balanceOf(this.iao.address)).toString(), ether('999998'));
+    // final withdraw
+    await this.iao.finalWithdraw(ether('999998'), ether('200'), {from: dev})
+    assert.equal((await this.offeringToken.balanceOf(dev)).toString(), ether('200'));
+    assert.equal((await this.raisingToken.balanceOf(dev)).toString(), ether('999998'));
     assert.equal((await this.offeringToken.balanceOf(this.iao.address)).toString(), ether('0'));
     assert.equal((await this.raisingToken.balanceOf(this.iao.address)).toString(), ether('0'));
 
