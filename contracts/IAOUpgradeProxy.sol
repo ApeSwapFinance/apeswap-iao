@@ -1,4 +1,5 @@
-pragma solidity 0.6.12;
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.6;
 
 /*
  * ApeSwapFinance
@@ -10,11 +11,11 @@ pragma solidity 0.6.12;
  * GitHub:          https://github.com/ApeSwapFinance
  */
 
-import "@pancakeswap/pancake-swap-lib/contracts/proxy/TransparentUpgradeableProxy.sol";
+import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
-contract IFOUpgradeProxy is TransparentUpgradeableProxy {
+contract IAOUpgradeProxy is TransparentUpgradeableProxy {
 
-    constructor(address admin, address logic, bytes memory data) TransparentUpgradeableProxy(logic, admin, data) public {
+    constructor(address admin, address logic, bytes memory data) TransparentUpgradeableProxy(logic, admin, data) {
 
     }
 
