@@ -473,7 +473,7 @@ describe('IAO', function() {
       assert.equal((await this.iao.hasHarvested(alice, harvestPeriod)).toString(), 'true');
     }
 
-    // 200 offering tokens are left due to rounding 
+    // offering tokens left due to rounding 
     assert.equal((await this.offeringToken.balanceOf(this.iao.address)).toString(), ether('.0001'));
     assert.equal((await this.raisingToken.balanceOf(this.iao.address)).toString(), ether('999999999.999'));
     // final withdraw
