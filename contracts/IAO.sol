@@ -191,7 +191,7 @@ contract IAO is ReentrancyGuard, Initializable {
         // 1e6 = 100%
         // 1e4 = 1%
         // 1 = 0.0001%
-        return (userInfo[_user].amount * 1e12 / totalAmount) / 1e6;
+        return (userInfo[_user].amount * 1e12 / totalAmount);
     }
 
     function getTotalStakeTokenBalance() public view returns (uint256) {
@@ -209,7 +209,7 @@ contract IAO is ReentrancyGuard, Initializable {
     /// @param _user Address of the user allocation to look up
     function getOfferingAmount(address _user) public view returns (uint256) {
         if (totalAmount > raisingAmount) {
-            return (offeringAmount * getUserAllocation(_user)) / 1e6;
+            return (offeringAmount * getUserAllocation(_user)) / 1e12;
         } else {
             // Return an offering amount equal to a proportion of the raising amount
             return (userInfo[_user].amount * offeringAmount) / raisingAmount;
@@ -230,7 +230,7 @@ contract IAO is ReentrancyGuard, Initializable {
         if (totalAmount <= raisingAmount || userInfo[_user].refunded == true) {
             return 0;
         }
-        uint256 payAmount = (raisingAmount * getUserAllocation(_user)) / 1e6;
+        uint256 payAmount = (raisingAmount * getUserAllocation(_user)) / 1e12;
         return userInfo[_user].amount - payAmount;
     }
 
