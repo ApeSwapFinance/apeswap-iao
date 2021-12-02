@@ -16,16 +16,19 @@ import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
 import '@openzeppelin/contracts/security/ReentrancyGuard.sol';
 
-contract IAO is ReentrancyGuard, Initializable {
+contract IAOLinearVesting is ReentrancyGuard, Initializable {
     using SafeERC20 for IERC20;
 
-    uint256 constant public HARVEST_PERIODS = 4; 
-    uint256[HARVEST_PERIODS] public harvestReleaseBlocks;
+    uint256 constant public INITIAL_RELEASE_PERCENTAGE = 2500;
+    uint256 constant public PERCENTAGE_FACTOR = 10000;
 
     // Info of each user.
     struct UserInfo {
         uint256 amount; // How many tokens the user has provided.
-        bool[HARVEST_PERIODS] claimed; // default false
+        uint256 vestedOfferingHarvested;
+        uint256 offeringTokensClaimed;
+        uint256 lastBlockHarvested;
+        bool hasHarvestedInitial;
         bool refunded;
     }
 
@@ -41,6 +44,8 @@ contract IAO is ReentrancyGuard, Initializable {
     uint256 public startBlock;
     // The block number when IAO ends
     uint256 public endBlock;
+    // The block number when 100% of tokens have been released
+    uint256 public vestingEndBlock;
     // total amount of raising tokens need to be raised
     uint256 public raisingAmount;
     // total amount of offeringToken that will offer
@@ -64,6 +69,7 @@ contract IAO is ReentrancyGuard, Initializable {
     event EmergencySweepWithdraw(address indexed receiver, address indexed token, uint256 balance);
 
 
+
     function initialize(
       IERC20 _stakeToken,
       IERC20 _offeringToken,
@@ -74,22 +80,22 @@ contract IAO is ReentrancyGuard, Initializable {
       uint256 _raisingAmount,
       address _adminAddress
     ) external initializer {
+        // Setup token variables
         stakeToken = _stakeToken;
         /// @dev address(0) turns this contract into a native token staking pool
         if(address(stakeToken) == address(0)) {
             isNativeTokenStaking = true;
         }
         offeringToken = _offeringToken;
+        // Setup block variables
         startBlock = _startBlock;
         endBlock = _startBlock + _endBlockOffset;
-        // Setup vesting release blocks
-        for (uint256 i = 0; i < HARVEST_PERIODS; i++) {
-            harvestReleaseBlocks[i] = endBlock + (_vestingBlockOffset * i);
-        }
-
+        vestingEndBlock = endBlock + _vestingBlockOffset;
+        // Setup amount variables
         offeringAmount = _offeringAmount;
         raisingAmount = _raisingAmount;
         totalAmount = 0;
+        // Setup admin variable
         adminAddress = _adminAddress;
     }
 
@@ -148,34 +154,37 @@ contract IAO is ReentrancyGuard, Initializable {
         userInfo[msg.sender].amount += _amount;
         totalAmount += _amount;
         totalDebt += _amount;
+
         emit Deposit(msg.sender, _amount);
     }
 
-    function harvest(uint256 harvestPeriod) external nonReentrant {
-        require(harvestPeriod < HARVEST_PERIODS, "harvest period out of range");
-        require(block.number > harvestReleaseBlocks[harvestPeriod], "not harvest time");
+    function harvest() external nonReentrant {
+        require(block.number > endBlock, "not harvest time");
         require(userInfo[msg.sender].amount > 0, "have you participated?");
-        require(!userInfo[msg.sender].claimed[harvestPeriod], "harvest for period already claimed");
-        // Refunds are only given on the first harvest
-        uint256 refundingTokenAmount = getRefundingAmount(msg.sender);
-        if (refundingTokenAmount > 0) {
+        require(userInfo[msg.sender].lastBlockHarvested < vestingEndBlock, "nothing left to harvest");
+        require(userInfo[msg.sender].lastBlockHarvested < block.number, "cannot harvest in the same block");
+
+        (
+            uint256 stakeTokenHarvest, 
+            uint256 offeringTokenTotalHarvest,,,
+        ) = userTokenStatus(msg.sender);
+
+        userInfo[msg.sender].lastBlockHarvested = block.number;
+        // Flag initial harvest
+        if(!userInfo[msg.sender].hasHarvestedInitial) {
+            userInfo[msg.sender].hasHarvestedInitial = true;
+        }
+        // Settle refund
+        if(!userInfo[msg.sender].refunded) {
+            if (stakeTokenHarvest > 0) {
+                safeTransferStakeInternal(msg.sender, stakeTokenHarvest);
+            }
             userInfo[msg.sender].refunded = true;
-            safeTransferStakeInternal(msg.sender, refundingTokenAmount);
         }
-    
-        uint256 offeringTokenAmountPerPeriod = getOfferingAmountPerPeriod(msg.sender);
-        offeringToken.safeTransfer(msg.sender, offeringTokenAmountPerPeriod);
+        // Transfer harvestable tokens
+        offeringToken.safeTransfer(msg.sender, offeringTokenTotalHarvest);
 
-        userInfo[msg.sender].claimed[harvestPeriod] = true;
-        // Subtract user debt after refund on initial harvest
-        if(harvestPeriod == 0) {
-            totalDebt -= userInfo[msg.sender].amount;
-        }
-        emit Harvest(msg.sender, offeringTokenAmountPerPeriod, refundingTokenAmount);
-    }
-
-    function hasHarvested(address _user, uint256 harvestPeriod) external view returns (bool) {
-        return userInfo[_user].claimed[harvestPeriod];
+        emit Harvest(msg.sender, offeringTokenTotalHarvest, stakeTokenHarvest);
     }
 
     /// @notice Calculate a users allocation based on the total amount deposited. This is done
@@ -188,9 +197,9 @@ contract IAO is ReentrancyGuard, Initializable {
         }
 
         // allocation: 
-        // 1e6 = 100%
-        // 1e4 = 1%
-        // 1 = 0.0001%
+        // 1e12 = 100%
+        // 1e10 = 1%
+        // 1e8 = 0.01%
         return (userInfo[_user].amount * 1e12 / totalAmount);
     }
 
@@ -217,8 +226,18 @@ contract IAO is ReentrancyGuard, Initializable {
     }
 
     // get the amount of IAO token you will get per harvest period
-    function getOfferingAmountPerPeriod(address _user) public view returns (uint256) {
-        return getOfferingAmount(_user) / HARVEST_PERIODS;
+    function getOfferingAmountAllocations(address _user) 
+        public 
+        view 
+        returns (
+            uint256 offeringInitialHarvestAmount, 
+            uint256 offeringTokenVestedAmount
+        ) 
+    {
+        uint256 userTotalOfferingAmount = getOfferingAmount(_user);
+
+        offeringInitialHarvestAmount = userTotalOfferingAmount * INITIAL_RELEASE_PERCENTAGE / PERCENTAGE_FACTOR;
+        offeringTokenVestedAmount = userTotalOfferingAmount - offeringInitialHarvestAmount;
     }
 
     /// @notice Calculate a user's refunding amount to be received by multiplying the raising amount by
@@ -227,13 +246,15 @@ contract IAO is ReentrancyGuard, Initializable {
     /// @param _user Address of the user allocation to look up
     function getRefundingAmount(address _user) public view returns (uint256) {
         // Users are able to obtain their refund on the first harvest only
-        if (totalAmount <= raisingAmount || userInfo[_user].refunded == true) {
+        if (totalAmount <= raisingAmount) {
             return 0;
         }
         uint256 payAmount = (raisingAmount * getUserAllocation(_user)) / 1e12;
         return userInfo[_user].amount - payAmount;
     }
 
+    // TODO: Return the stakeTokenHarvest, offeringTokenHarvest, offeringTokensVested,
+    // TODO: natspec for return vars
     /// @notice Get the amount of tokens a user is eligible to receive based on current state. 
     /// @param _user address of user to obtain token status 
     function userTokenStatus(address _user) 
@@ -241,29 +262,47 @@ contract IAO is ReentrancyGuard, Initializable {
         view 
         returns (
             uint256 stakeTokenHarvest, 
-            uint256 offeringTokenHarvest, 
+            uint256 offeringTokenTotalHarvest, 
+            uint256 offeringTokenInitialHarvest,
+            uint256 offeringTokenVestedHarvest, 
             uint256 offeringTokensVested
         ) 
     {
         uint256 currentBlock = block.number;
         if(currentBlock < endBlock) {
-            return (0,0,0); 
+            return (0,0,0,0,0); 
+        }
+        // Setup refund amount
+        stakeTokenHarvest = 0;
+        if(!userInfo[_user].refunded) {
+            stakeTokenHarvest = getRefundingAmount(_user);
         }
 
-        stakeTokenHarvest = getRefundingAmount(_user);
-        uint256 userOfferingPerPeriod = getOfferingAmountPerPeriod(_user);
-
-        for (uint256 i = 0; i < HARVEST_PERIODS; i++) {
-            if(currentBlock >= harvestReleaseBlocks[i] && !userInfo[_user].claimed[i]) {
-                // If offering tokens are available for harvest AND user has not claimed yet
-                offeringTokenHarvest += userOfferingPerPeriod;
-            } else if (currentBlock < harvestReleaseBlocks[i]) {
-                // If harvest period is in the future
-                offeringTokensVested += userOfferingPerPeriod;
-            }
+        (uint256 offeringInitialHarvestAmount , uint256 offeringTokenVestedAmount) = getOfferingAmountAllocations(_user);
+        // Setup initial harvest amount
+        offeringTokenInitialHarvest = 0;
+        if(!userInfo[_user].hasHarvestedInitial) {
+            offeringTokenInitialHarvest = offeringInitialHarvestAmount;
         }
+        // Setup harvestable vested token amount
+        uint256 totalVestingBlocks = vestingEndBlock - endBlock;
+        // Use the lower value of block.number or vestingEndBlock
+        uint256 unlockEndBlock = block.number < vestingEndBlock ? block.number : vestingEndBlock;
+        // endBlock is the earliest harvest block
+        uint256 lastHarvestBlock = userInfo[_user].lastBlockHarvested < endBlock ? endBlock : userInfo[_user].lastBlockHarvested;
+        offeringTokenVestedHarvest = 0;
+        if(unlockEndBlock > lastHarvestBlock ) {
+            uint256 unlockBlocks = unlockEndBlock - lastHarvestBlock;
+            offeringTokenVestedHarvest = (offeringTokenVestedAmount * unlockBlocks) / totalVestingBlocks;
+        }
+        
+        offeringTokenTotalHarvest = offeringTokenInitialHarvest + offeringTokenVestedHarvest;
 
-        return (stakeTokenHarvest, offeringTokenHarvest, offeringTokensVested);
+        offeringTokensVested = 0;
+        if(block.number < vestingEndBlock) {
+            uint256 vestingBlocksLeft = vestingEndBlock - block.number;
+            offeringTokensVested = offeringTokenVestedAmount * vestingBlocksLeft / totalVestingBlocks;
+        }
     }
 
     function getAddressListLength() external view returns (uint256) {
@@ -302,14 +341,13 @@ contract IAO is ReentrancyGuard, Initializable {
         }
     }
 
-    // TODO: SuperSweep
     /// @notice Sweep accidental ERC20 transfers to this contract. Can only be called by admin.
-    /// @param token The address of the ERC20 token to sweep
-    function sweepToken(IERC20 token) external onlyAdmin {
-        require(address(token) != address(stakeToken), "can not sweep stake token");
-        require(address(token) != address(offeringToken), "can not sweep offering token");
-        uint256 balance = token.balanceOf(address(this));
-        token.safeTransfer(msg.sender, balance);
-        emit EmergencySweepWithdraw(msg.sender, address(token), balance);
+    /// @param _token The address of the ERC20 token to sweep
+    function sweepToken(IERC20 _token) external onlyAdmin {
+        require(address(_token) != address(stakeToken), "can not sweep stake token");
+        require(address(_token) != address(offeringToken), "can not sweep offering token");
+        uint256 balance = _token.balanceOf(address(this));
+        _token.safeTransfer(msg.sender, balance);
+        emit EmergencySweepWithdraw(msg.sender, address(_token), balance);
     }
 }
