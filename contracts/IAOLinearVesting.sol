@@ -163,7 +163,7 @@ contract IAOLinearVesting is ReentrancyGuard, Initializable {
         require(userInfo[msg.sender].amount > 0, "have you participated?");
         require(userInfo[msg.sender].lastBlockHarvested < vestingEndBlock, "nothing left to harvest");
         require(userInfo[msg.sender].lastBlockHarvested < block.number, "cannot harvest in the same block");
-
+        
         (
             uint256 stakeTokenHarvest, 
             uint256 offeringTokenTotalHarvest,,,
@@ -181,8 +181,13 @@ contract IAOLinearVesting is ReentrancyGuard, Initializable {
             }
             userInfo[msg.sender].refunded = true;
         }
-        // Transfer harvestable tokens
-        offeringToken.safeTransfer(msg.sender, offeringTokenTotalHarvest);
+        uint256 offeringAllocationLeft = getOfferingAmount(msg.sender) - userInfo[msg.sender].offeringTokensClaimed;
+        uint256 allocatedTokens = offeringAllocationLeft >= offeringTokenTotalHarvest ? offeringTokenTotalHarvest : offeringAllocationLeft;
+        if(allocatedTokens > 0) {
+            userInfo[msg.sender].offeringTokensClaimed += allocatedTokens;
+            // Transfer harvestable tokens
+            offeringToken.safeTransfer(msg.sender, allocatedTokens);
+        }
 
         emit Harvest(msg.sender, offeringTokenTotalHarvest, stakeTokenHarvest);
     }
