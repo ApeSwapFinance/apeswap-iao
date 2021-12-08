@@ -160,31 +160,33 @@ contract IAOLinearVesting is ReentrancyGuard, Initializable {
 
     function harvest() external nonReentrant {
         require(block.number > endBlock, "not harvest time");
-        require(userInfo[msg.sender].amount > 0, "have you participated?");
-        require(userInfo[msg.sender].lastBlockHarvested < vestingEndBlock, "nothing left to harvest");
-        require(userInfo[msg.sender].lastBlockHarvested < block.number, "cannot harvest in the same block");
+        UserInfo storage currentUserInfo = userInfo[msg.sender];
+        require(currentUserInfo.amount > 0, "have you participated?");
+        require(currentUserInfo.lastBlockHarvested < vestingEndBlock, "nothing left to harvest");
+        require(currentUserInfo.lastBlockHarvested < block.number, "cannot harvest in the same block");
         
         (
             uint256 stakeTokenHarvest, 
             uint256 offeringTokenTotalHarvest,,,
         ) = userTokenStatus(msg.sender);
 
-        userInfo[msg.sender].lastBlockHarvested = block.number;
+        currentUserInfo.lastBlockHarvested = block.number;
         // Flag initial harvest
-        if(!userInfo[msg.sender].hasHarvestedInitial) {
-            userInfo[msg.sender].hasHarvestedInitial = true;
+        if(!currentUserInfo.hasHarvestedInitial) {
+            currentUserInfo.hasHarvestedInitial = true;
         }
         // Settle refund
-        if(!userInfo[msg.sender].refunded) {
+        if(!currentUserInfo.refunded) {
             if (stakeTokenHarvest > 0) {
                 safeTransferStakeInternal(msg.sender, stakeTokenHarvest);
             }
-            userInfo[msg.sender].refunded = true;
+            currentUserInfo.refunded = true;
         }
-        uint256 offeringAllocationLeft = getOfferingAmount(msg.sender) - userInfo[msg.sender].offeringTokensClaimed;
+        // Final check to verify the user has not gotten more tokens that originally allocated
+        uint256 offeringAllocationLeft = getOfferingAmount(msg.sender) - currentUserInfo.offeringTokensClaimed;
         uint256 allocatedTokens = offeringAllocationLeft >= offeringTokenTotalHarvest ? offeringTokenTotalHarvest : offeringAllocationLeft;
         if(allocatedTokens > 0) {
-            userInfo[msg.sender].offeringTokensClaimed += allocatedTokens;
+            currentUserInfo.offeringTokensClaimed += allocatedTokens;
             // Transfer harvestable tokens
             offeringToken.safeTransfer(msg.sender, allocatedTokens);
         }
@@ -258,10 +260,13 @@ contract IAOLinearVesting is ReentrancyGuard, Initializable {
         return userInfo[_user].amount - payAmount;
     }
 
-    // TODO: Return the stakeTokenHarvest, offeringTokenHarvest, offeringTokensVested,
-    // TODO: natspec for return vars
     /// @notice Get the amount of tokens a user is eligible to receive based on current state. 
     /// @param _user address of user to obtain token status 
+    /// @return stakeTokenHarvest Amount of tokens available for harvest
+    /// @return offeringTokenTotalHarvest Total amount of offering tokens that can be harvested (initial + vested)
+    /// @return offeringTokenInitialHarvest Amount of initial harvest offering tokens that can be collected
+    /// @return offeringTokenVestedHarvest Amount offering tokens that can be harvested from the vesting portion of tokens
+    /// @return offeringTokensVested Amount of offering tokens that are still vested
     function userTokenStatus(address _user) 
         public 
         view 
@@ -277,16 +282,17 @@ contract IAOLinearVesting is ReentrancyGuard, Initializable {
         if(currentBlock < endBlock) {
             return (0,0,0,0,0); 
         }
+        UserInfo memory currentUserInfo = userInfo[_user];
         // Setup refund amount
         stakeTokenHarvest = 0;
-        if(!userInfo[_user].refunded) {
+        if(!currentUserInfo.refunded) {
             stakeTokenHarvest = getRefundingAmount(_user);
         }
 
         (uint256 offeringInitialHarvestAmount , uint256 offeringTokenVestedAmount) = getOfferingAmountAllocations(_user);
         // Setup initial harvest amount
         offeringTokenInitialHarvest = 0;
-        if(!userInfo[_user].hasHarvestedInitial) {
+        if(!currentUserInfo.hasHarvestedInitial) {
             offeringTokenInitialHarvest = offeringInitialHarvestAmount;
         }
         // Setup harvestable vested token amount
@@ -294,7 +300,7 @@ contract IAOLinearVesting is ReentrancyGuard, Initializable {
         // Use the lower value of block.number or vestingEndBlock
         uint256 unlockEndBlock = block.number < vestingEndBlock ? block.number : vestingEndBlock;
         // endBlock is the earliest harvest block
-        uint256 lastHarvestBlock = userInfo[_user].lastBlockHarvested < endBlock ? endBlock : userInfo[_user].lastBlockHarvested;
+        uint256 lastHarvestBlock = currentUserInfo.lastBlockHarvested < endBlock ? endBlock : currentUserInfo.lastBlockHarvested;
         offeringTokenVestedHarvest = 0;
         if(unlockEndBlock > lastHarvestBlock ) {
             uint256 unlockBlocks = unlockEndBlock - lastHarvestBlock;
