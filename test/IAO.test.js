@@ -24,8 +24,9 @@ describe('IAO', function() {
   });
 
   it('raise not enough lp', async () => {
-    const START_BLOCK = new BN(20);
+    const START_BLOCK = (await time.latestBlock()).add(new BN(10));
     const IAO_LENGTH = new BN(10);
+    const VESTING_PERIOD_LENGTH = new BN(10);
     this.iao = await IAO.new();
 
     await this.iao.initialize(
@@ -33,17 +34,18 @@ describe('IAO', function() {
       this.offeringToken.address, 
       START_BLOCK, 
       IAO_LENGTH,
-      '10',
+      VESTING_PERIOD_LENGTH,
       ether(OFFERING_AMOUNT), // offering amount
       ether(RAISING_AMOUNT),  // raising amount
       dev, 
       { from: minter }
     );
 
-    assert.equal((await this.iao.harvestReleaseBlocks(0)).toString(), START_BLOCK.add(IAO_LENGTH));
-    assert.equal((await this.iao.harvestReleaseBlocks(1)).toString(), '40');
-    assert.equal((await this.iao.harvestReleaseBlocks(2)).toString(), '50');
-    assert.equal((await this.iao.harvestReleaseBlocks(3)).toString(), '60');
+    const endBlock = START_BLOCK.add(IAO_LENGTH);
+    assert.equal((await this.iao.harvestReleaseBlocks(0)).toString(), endBlock);
+    assert.equal((await this.iao.harvestReleaseBlocks(1)).toString(), endBlock.add(VESTING_PERIOD_LENGTH));
+    assert.equal((await this.iao.harvestReleaseBlocks(2)).toString(), endBlock.add(VESTING_PERIOD_LENGTH).add(VESTING_PERIOD_LENGTH));
+    assert.equal((await this.iao.harvestReleaseBlocks(3)).toString(), endBlock.add(VESTING_PERIOD_LENGTH).add(VESTING_PERIOD_LENGTH).add(VESTING_PERIOD_LENGTH));
 
     await this.offeringToken.transfer(this.iao.address, ether(OFFERING_AMOUNT), { from: minter });
 
@@ -131,23 +133,28 @@ describe('IAO', function() {
   })
 
   it('raise enough++ lp', async () => {
+    const START_BLOCK = (await time.latestBlock()).add(new BN(10));
+    const IAO_LENGTH = new BN(50);
+    const VESTING_PERIOD_LENGTH = new BN(10);
+
     this.iao = await IAO.new();
     await this.iao.initialize(
       this.raisingToken.address, 
       this.offeringToken.address, 
-      '100', 
-      '50',
-      '10',
+      START_BLOCK, 
+      IAO_LENGTH,
+      VESTING_PERIOD_LENGTH,
       ether(OFFERING_AMOUNT), // offering amount
       ether(RAISING_AMOUNT),  // raising amount
       dev, 
       { from: minter }
     );
 
-    assert.equal((await this.iao.harvestReleaseBlocks(0)).toString(), '150');
-    assert.equal((await this.iao.harvestReleaseBlocks(1)).toString(), '160');
-    assert.equal((await this.iao.harvestReleaseBlocks(2)).toString(), '170');
-    assert.equal((await this.iao.harvestReleaseBlocks(3)).toString(), '180');
+    const endBlock = START_BLOCK.add(IAO_LENGTH);
+    assert.equal((await this.iao.harvestReleaseBlocks(0)).toString(), endBlock);
+    assert.equal((await this.iao.harvestReleaseBlocks(1)).toString(), endBlock.add(VESTING_PERIOD_LENGTH));
+    assert.equal((await this.iao.harvestReleaseBlocks(2)).toString(), endBlock.add(VESTING_PERIOD_LENGTH).add(VESTING_PERIOD_LENGTH));
+    assert.equal((await this.iao.harvestReleaseBlocks(3)).toString(), endBlock.add(VESTING_PERIOD_LENGTH).add(VESTING_PERIOD_LENGTH).add(VESTING_PERIOD_LENGTH));
 
 
     await this.offeringToken.transfer(this.iao.address, ether(OFFERING_AMOUNT), { from: minter });
@@ -160,7 +167,7 @@ describe('IAO', function() {
       'not iao time',
     );
 
-    await time.advanceBlockTo('100');
+    await time.advanceBlockTo(START_BLOCK);
 
     await this.iao.deposit(ether('100'), {from: bob});
     await this.iao.deposit(ether('200'), {from: alice});
@@ -247,24 +254,28 @@ describe('IAO', function() {
   })
 
   it('raise enough lp', async () => {
+    const START_BLOCK = (await time.latestBlock()).add(new BN(10));
+    const IAO_LENGTH = new BN(50);
+    const VESTING_PERIOD_LENGTH = new BN(10);
+
     this.iao = await IAO.new();
     await this.iao.initialize(
       this.raisingToken.address, 
       this.offeringToken.address, 
-      '300', 
-      '50', 
-      '10',
+      START_BLOCK, 
+      IAO_LENGTH,
+      VESTING_PERIOD_LENGTH,
       ether('18'), // offering amount
       ether('18'),  // raising amount
       dev, 
       { from: minter }
     );
 
-    assert.equal((await this.iao.harvestReleaseBlocks(0)).toString(), '350');
-    assert.equal((await this.iao.harvestReleaseBlocks(1)).toString(), '360');
-    assert.equal((await this.iao.harvestReleaseBlocks(2)).toString(), '370');
-    assert.equal((await this.iao.harvestReleaseBlocks(3)).toString(), '380');
-
+    const endBlock = START_BLOCK.add(IAO_LENGTH);
+    assert.equal((await this.iao.harvestReleaseBlocks(0)).toString(), endBlock);
+    assert.equal((await this.iao.harvestReleaseBlocks(1)).toString(), endBlock.add(VESTING_PERIOD_LENGTH));
+    assert.equal((await this.iao.harvestReleaseBlocks(2)).toString(), endBlock.add(VESTING_PERIOD_LENGTH).add(VESTING_PERIOD_LENGTH));
+    assert.equal((await this.iao.harvestReleaseBlocks(3)).toString(), endBlock.add(VESTING_PERIOD_LENGTH).add(VESTING_PERIOD_LENGTH).add(VESTING_PERIOD_LENGTH));
 
     await this.offeringToken.transfer(this.iao.address, ether('18'), { from: minter });
 
@@ -276,7 +287,7 @@ describe('IAO', function() {
       'not iao time',
     );
 
-    await time.advanceBlockTo('300');
+    await time.advanceBlockTo(START_BLOCK);
 
     await this.iao.deposit(ether('1'), {from: bob});
     await this.iao.deposit(ether('2'), {from: alice});
@@ -376,30 +387,34 @@ describe('IAO', function() {
   })
 
   it('should handle allocations <1/1e6 when enough++ lp is raised', async () => {
+    const START_BLOCK = (await time.latestBlock()).add(new BN(20));
+    const IAO_LENGTH = new BN(50);
+    const VESTING_PERIOD_LENGTH = new BN(10);
+
     const BIG_RAISING_AMOUNT = '1000000000';
     await this.raisingToken.transfer(bob, ether(BIG_RAISING_AMOUNT), { from: minter });
     await this.raisingToken.transfer(alice, ether(BIG_RAISING_AMOUNT), { from: minter });
     await this.raisingToken.transfer(carol, ether(BIG_RAISING_AMOUNT), { from: minter });
 
-
     this.iao = await IAO.new();
     await this.iao.initialize(
       this.raisingToken.address, 
       this.offeringToken.address, 
-      '500', 
-      '50',
-      '10',
+      START_BLOCK, 
+      IAO_LENGTH,
+      VESTING_PERIOD_LENGTH,
       ether(OFFERING_AMOUNT), // offering amount 
       ether(BIG_RAISING_AMOUNT),  // raising amount
       dev, 
       { from: minter }
     );
 
-    assert.equal((await this.iao.harvestReleaseBlocks(0)).toString(), '550');
-    assert.equal((await this.iao.harvestReleaseBlocks(1)).toString(), '560');
-    assert.equal((await this.iao.harvestReleaseBlocks(2)).toString(), '570');
-    assert.equal((await this.iao.harvestReleaseBlocks(3)).toString(), '580');
 
+    const endBlock = START_BLOCK.add(IAO_LENGTH);
+    assert.equal((await this.iao.harvestReleaseBlocks(0)).toString(), endBlock);
+    assert.equal((await this.iao.harvestReleaseBlocks(1)).toString(), endBlock.add(VESTING_PERIOD_LENGTH));
+    assert.equal((await this.iao.harvestReleaseBlocks(2)).toString(), endBlock.add(VESTING_PERIOD_LENGTH).add(VESTING_PERIOD_LENGTH));
+    assert.equal((await this.iao.harvestReleaseBlocks(3)).toString(), endBlock.add(VESTING_PERIOD_LENGTH).add(VESTING_PERIOD_LENGTH).add(VESTING_PERIOD_LENGTH));
 
     await this.offeringToken.transfer(this.iao.address, ether(OFFERING_AMOUNT), { from: minter });
 
@@ -411,7 +426,7 @@ describe('IAO', function() {
       'not iao time',
     );
 
-    await time.advanceBlockTo('500');
+    await time.advanceBlockTo(START_BLOCK);
 
     await this.iao.deposit(ether(BIG_RAISING_AMOUNT), {from: bob});
     await this.iao.deposit(ether(BIG_RAISING_AMOUNT), {from: alice});
