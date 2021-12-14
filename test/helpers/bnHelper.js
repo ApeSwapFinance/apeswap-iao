@@ -49,16 +49,41 @@ function isWithinLimit(bnToCheck, bnExpected, tolerancePercentage = 2) {
   const tolerance = bnExpected.mul(new BN(tolerancePercentage)).div(new BN(100));
   let withinTolerance = true;
   if (bnToCheck.gte(bnExpected.add(tolerance))) {
-    console.error(`bnHelper::isWithinLimit - ${bnToCheck.toString()} gte upper tolerance limit of ${tolerancePercentage}`);
+    console.error(`bnHelper::isWithinLimit - ${bnToCheck.toString()} gte upper tolerance limit of ${tolerancePercentage}% to a value of ${(bnExpected.add(tolerance)).toString()}`);
     withinTolerance = false;
   }
 
   if (bnToCheck.lte(bnExpected.sub(tolerance))) {
-    console.error(`bnHelper::isWithinLimit - ${bnToCheck.toString()} lte lower tolerance limit of ${tolerancePercentage}`);
+    console.error(`bnHelper::isWithinLimit - ${bnToCheck.toString()} lte lower tolerance limit of ${tolerancePercentage}% to a value of ${(bnExpected.sub(tolerance)).toString()}`);
     withinTolerance = false;
   }
 
   return withinTolerance;
 }
 
-module.exports = { addBNStr, subBNStr, mulBNStr, divBNStr, formatBNObjectToString, isWithinLimit }
+/**
+ * Check that a BN/BN String is within a percentage tolerance of another big number
+ * 
+ * @param {*} bnToCheck Value to check
+ * @param {*} bnExpected Expected value
+ * @param {*} tolerancePercentage Percentage to add/subtract from expected value to check tolerance
+ * @returns boolean
+ */
+function isWithinWeiLimit(bnToCheck, bnExpected, tolerance = new BN(0)) {
+  bnToCheck = new BN(bnToCheck)
+  bnExpected = new BN(bnExpected)
+  let withinTolerance = true;
+  if (bnToCheck.gte(bnExpected.add(tolerance))) {
+    console.error(`bnHelper::isWithinWeiLimit - ${bnToCheck.toString()} gte upper tolerance limit of ${tolerancePercentage}% to a value of ${(bnExpected.add(tolerance)).toString()}`);
+    withinTolerance = false;
+  }
+
+  if (bnToCheck.lte(bnExpected.sub(tolerance))) {
+    console.error(`bnHelper::isWithinWeiLimit - ${bnToCheck.toString()} lte lower tolerance limit of ${tolerancePercentage}% to a value of ${(bnExpected.sub(tolerance)).toString()}`);
+    withinTolerance = false;
+  }
+
+  return withinTolerance;
+}
+
+module.exports = { addBNStr, subBNStr, mulBNStr, divBNStr, formatBNObjectToString, isWithinLimit, isWithinWeiLimit }
