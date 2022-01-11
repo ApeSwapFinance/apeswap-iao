@@ -25,7 +25,6 @@ contract IAOLinearVesting is ReentrancyGuard, Initializable {
     // Info of each user.
     struct UserInfo {
         uint256 amount; // How many tokens the user has provided.
-        uint256 vestedOfferingHarvested;
         uint256 offeringTokensClaimed;
         uint256 lastBlockHarvested;
         bool hasHarvestedInitial;
