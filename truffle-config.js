@@ -1,4 +1,4 @@
-var HDWalletProvider = require("truffle-hdwallet-provider");
+var HDWalletProvider = require("@truffle/hdwallet-provider");
 require('dotenv').config()
 
 const BSC_DEPLOYER_KEY = process.env.BSC_DEPLOYER_KEY;
