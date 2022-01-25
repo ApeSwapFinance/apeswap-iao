@@ -145,7 +145,7 @@ describe('IAO Large Offer', function() {
     // assert.equal((await this.offeringToken.balanceOf(this.iao.address)).toString(), ether('.0001'));
     // assert.equal((await this.raisingToken.balanceOf(this.iao.address)).toString(), ether('999.999999999'));
     // final withdraw
-    await this.iao.finalWithdraw(ether('999.999999999'), ether('.0001'), {from: dev})
+    await this.iao.finalWithdraw(ether('100'), '0', {from: dev})
     // assert.equal((await this.offeringToken.balanceOf(dev)).toString(), ether('.0001'));
     // assert.equal((await this.raisingToken.balanceOf(dev)).toString(), ether('999.999999999'));
     // assert.equal((await this.offeringToken.balanceOf(this.iao.address)).toString(), ether('0'));

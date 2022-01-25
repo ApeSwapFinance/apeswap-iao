@@ -218,9 +218,9 @@ describe('IAO-BNB Linear Vesting', function () {
     assert.equal((await this.iao.getUserAllocation(carol)).toString(), '500000000000');
     assert.equal((await this.iao.getUserAllocation(alice)).toString(), '333333333333');
     assert.equal((await this.iao.getOfferingAmount(carol)).toString(), ether('500000000000000000'));
-    assert.equal((await this.iao.getOfferingAmount(bob)).toString(), ether('166666666666000000'));
+    assert.equal((await this.iao.getOfferingAmount(bob)).toString(), '166666666666666666666666666666666666');
     assert.equal((await this.iao.getRefundingAmount(carol)).toString(), ether('4'));
-    assert.equal((await this.iao.getRefundingAmount(bob)).toString(), '1333333333340000000');
+    assert.equal((await this.iao.getRefundingAmount(bob)).toString(), '1333333333333333334');
     await expectRevert(
       this.iao.harvest({ from: bob }),
       'not harvest time',
