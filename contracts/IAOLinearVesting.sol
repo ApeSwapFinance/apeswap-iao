@@ -172,6 +172,7 @@ contract IAOLinearVesting is ReentrancyGuard, Initializable {
         currentUserInfo.lastBlockHarvested = block.number;
         // Flag initial harvest
         if(!currentUserInfo.hasHarvestedInitial) {
+            totalDebt -= userInfo[msg.sender].amount; 
             currentUserInfo.hasHarvestedInitial = true;
         }
         // Settle refund

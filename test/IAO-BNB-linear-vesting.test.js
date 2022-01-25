@@ -300,8 +300,8 @@ describe('IAO-BNB Linear Vesting', function () {
     assert.equal(lastOfferingTokenSnapshot[alice], lastIAZOSnapshot.accountSnapshots[alice].userOfferingAmount, 'alice final offer balance does not equal contract offering amount');
     // Expect refund balance to equal balance increase of user
     assert.equal(isWithinWeiLimit(subBNStr(lastRaiseTokenSnapshot[carol], initialRaiseTokenSnapshot[carol]), lastIAZOSnapshot.accountSnapshots[carol].userRefundingAmount, ether('.01')), true, 'carol refunding amount inaccurate');
-    assert.equal(isWithinWeiLimit(subBNStr(lastRaiseTokenSnapshot[bob], initialRaiseTokenSnapshot[bob]), lastIAZOSnapshot.accountSnapshots[bob].userRefundingAmount, ether('.01')), true, 'bob refunding amount inaccurate');
-    assert.equal(isWithinWeiLimit(subBNStr(lastRaiseTokenSnapshot[alice], initialRaiseTokenSnapshot[alice]), lastIAZOSnapshot.accountSnapshots[alice].userRefundingAmount, ether('.01')), true, 'alice refunding amount inaccurate');
+    assert.equal(isWithinWeiLimit(subBNStr(lastRaiseTokenSnapshot[bob], initialRaiseTokenSnapshot[bob]), lastIAZOSnapshot.accountSnapshots[bob].userRefundingAmount, ether('.0101')), true, 'bob refunding amount inaccurate');
+    assert.equal(isWithinWeiLimit(subBNStr(lastRaiseTokenSnapshot[alice], initialRaiseTokenSnapshot[alice]), lastIAZOSnapshot.accountSnapshots[alice].userRefundingAmount, ether('.0101')), true, 'alice refunding amount inaccurate');
     // Expect that users cannot harvest anymore
     await expectRevert(
       this.iao.harvest({ from: alice }),
@@ -315,6 +315,9 @@ describe('IAO-BNB Linear Vesting', function () {
       this.iao.harvest({ from: carol }),
       'nothing left to harvest',
     );
+
+    const totalDebt = await this.iao.totalDebt();
+    assert.equal(totalDebt.toString(), '0', 'total debt is not accurate');
   })
 
   it('raise enough lp - BNB staking', async () => {
