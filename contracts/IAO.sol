@@ -123,13 +123,13 @@ contract IAO is ReentrancyGuardUpgradeable {
         _;
     }
 
-    function setOfferingAmount(uint256 _offerAmount) public onlyAdmin {
+    function setOfferingAmount(uint256 _offerAmount) external onlyAdmin {
         require(block.number < startBlock, "cannot update during active iao");
         emit UpdateOfferingAmount(offeringAmount, _offerAmount);
         offeringAmount = _offerAmount;
     }
 
-    function setRaisingAmount(uint256 _raisingAmount) public onlyAdmin {
+    function setRaisingAmount(uint256 _raisingAmount) external onlyAdmin {
         require(block.number < startBlock, "cannot update during active iao");
         emit UpdateRaisingAmount(raisingAmount, _raisingAmount);
         raisingAmount = _raisingAmount;
