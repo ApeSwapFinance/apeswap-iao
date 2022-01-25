@@ -287,7 +287,7 @@ contract IAOLinearVesting is ReentrancyGuardUpgradeable {
     /// @return offeringTokenTotalHarvest Total amount of offering tokens that can be harvested (initial + vested)
     /// @return offeringTokenInitialHarvest Amount of initial harvest offering tokens that can be collected
     /// @return offeringTokenVestedHarvest Amount offering tokens that can be harvested from the vesting portion of tokens
-    /// @return offeringTokensVested Amount of offering tokens that are still vested
+    /// @return offeringTokensVesting Amount of offering tokens that are still vested
     function userTokenStatus(address _user) 
         public 
         view 
@@ -296,7 +296,7 @@ contract IAOLinearVesting is ReentrancyGuardUpgradeable {
             uint256 offeringTokenTotalHarvest, 
             uint256 offeringTokenInitialHarvest,
             uint256 offeringTokenVestedHarvest, 
-            uint256 offeringTokensVested
+            uint256 offeringTokensVesting
         ) 
     {
         uint256 currentBlock = block.number;
@@ -330,10 +330,10 @@ contract IAOLinearVesting is ReentrancyGuardUpgradeable {
         
         offeringTokenTotalHarvest = offeringTokenInitialHarvest + offeringTokenVestedHarvest;
 
-        offeringTokensVested = 0;
+        offeringTokensVesting = 0;
         if(block.number < vestingEndBlock) {
             uint256 vestingBlocksLeft = vestingEndBlock - block.number;
-            offeringTokensVested = offeringTokenVestedAmount * vestingBlocksLeft / totalVestingBlocks;
+            offeringTokensVesting = offeringTokenVestedAmount * vestingBlocksLeft / totalVestingBlocks;
         }
     }
 
@@ -370,7 +370,7 @@ contract IAOLinearVesting is ReentrancyGuardUpgradeable {
             require(success, "TransferHelper: NATIVE_TRANSFER_FAILED");
         } else {
             // Transfer ERC20 to address
-            IERC20(stakeToken).safeTransfer(_to, _amount);
+            stakeToken.safeTransfer(_to, _amount);
         }
     }
 

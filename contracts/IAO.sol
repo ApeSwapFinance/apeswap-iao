@@ -210,9 +210,9 @@ contract IAO is ReentrancyGuardUpgradeable {
         }
 
         // allocation: 
-        // 1e6 = 100%
-        // 1e4 = 1%
-        // 1 = 0.0001%
+        // 1e12 = 100%
+        // 1e10 = 1%
+        // 1e8 = 0.01%
         return (userInfo[_user].amount * 1e12 / totalAmount);
     }
 
@@ -257,6 +257,7 @@ contract IAO is ReentrancyGuardUpgradeable {
 
     /// @notice Get the amount of tokens a user is eligible to receive based on current state. 
     /// @param _user address of user to obtain token status 
+    /// @notice offeringTokensVested should be named offeringTokensVesting. Leaving for backward compatibility
     function userTokenStatus(address _user) 
         public 
         view 
@@ -320,7 +321,7 @@ contract IAO is ReentrancyGuardUpgradeable {
             require(success, "TransferHelper: NATIVE_TRANSFER_FAILED");
         } else {
             // Transfer ERC20 to address
-            IERC20(stakeToken).safeTransfer(_to, _amount);
+            stakeToken.safeTransfer(_to, _amount);
         }
     }
 
