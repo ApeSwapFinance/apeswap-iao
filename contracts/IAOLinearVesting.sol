@@ -2,21 +2,35 @@
 pragma solidity 0.8.6;
 
 /*
- * ApeSwapFinance
+  ______                     ______                                 
+ /      \                   /      \                                
+|  ▓▓▓▓▓▓\ ______   ______ |  ▓▓▓▓▓▓\__   __   __  ______   ______  
+| ▓▓__| ▓▓/      \ /      \| ▓▓___\▓▓  \ |  \ |  \|      \ /      \ 
+| ▓▓    ▓▓  ▓▓▓▓▓▓\  ▓▓▓▓▓▓\\▓▓    \| ▓▓ | ▓▓ | ▓▓ \▓▓▓▓▓▓\  ▓▓▓▓▓▓\
+| ▓▓▓▓▓▓▓▓ ▓▓  | ▓▓ ▓▓    ▓▓_\▓▓▓▓▓▓\ ▓▓ | ▓▓ | ▓▓/      ▓▓ ▓▓  | ▓▓
+| ▓▓  | ▓▓ ▓▓__/ ▓▓ ▓▓▓▓▓▓▓▓  \__| ▓▓ ▓▓_/ ▓▓_/ ▓▓  ▓▓▓▓▓▓▓ ▓▓__/ ▓▓
+| ▓▓  | ▓▓ ▓▓    ▓▓\▓▓     \\▓▓    ▓▓\▓▓   ▓▓   ▓▓\▓▓    ▓▓ ▓▓    ▓▓
+ \▓▓   \▓▓ ▓▓▓▓▓▓▓  \▓▓▓▓▓▓▓ \▓▓▓▓▓▓  \▓▓▓▓▓\▓▓▓▓  \▓▓▓▓▓▓▓ ▓▓▓▓▓▓▓ 
+         | ▓▓                                             | ▓▓      
+         | ▓▓                                             | ▓▓      
+          \▓▓                                              \▓▓         
+
  * App:             https://apeswap.finance
  * Medium:          https://ape-swap.medium.com
  * Twitter:         https://twitter.com/ape_swap
+ * Discord:         https://discord.com/invite/apeswap
  * Telegram:        https://t.me/ape_swap
  * Announcements:   https://t.me/ape_swap_news
  * GitHub:          https://github.com/ApeSwapFinance
  */
 
-import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
-import '@openzeppelin/contracts/security/ReentrancyGuard.sol';
+import '@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol';
 
-contract IAOLinearVesting is ReentrancyGuard, Initializable {
+/// @title Linear Vesting Contract for Initial Ape Offerings
+/// @notice safeTransferStakeInternal uses a fixed gas limit for native transfers which should be evaluated when deploying to new networks.
+contract IAOLinearVesting is ReentrancyGuardUpgradeable {
     using SafeERC20 for IERC20;
 
     uint256 constant public INITIAL_RELEASE_PERCENTAGE = 2500;
@@ -65,8 +79,10 @@ contract IAOLinearVesting is ReentrancyGuard, Initializable {
         uint256 offeringAmount,
         uint256 excessAmount
     );
+    event UpdateOfferingAmount(uint256 previousOfferingAmount, uint256 newOfferingAmount);
+    event UpdateRaisingAmount(uint256 previousRaisingAmount, uint256 newRaisingAmount);
+    event AdminFinalWithdraw(uint256 stakeTokenAmount, uint256 offerAmount);
     event EmergencySweepWithdraw(address indexed receiver, address indexed token, uint256 balance);
-
 
 
     function initialize(
@@ -89,6 +105,8 @@ contract IAOLinearVesting is ReentrancyGuard, Initializable {
         // Setup block variables
         startBlock = _startBlock;
         endBlock = _startBlock + _endBlockOffset;
+        // userTokenStatus requires that _vestingBlockOffset be greater than endBlock;
+        require(_vestingBlockOffset > 0, 'vestingBlockOffset must be greater than 0');
         vestingEndBlock = endBlock + _vestingBlockOffset;
         // Setup amount variables
         offeringAmount = _offeringAmount;
@@ -111,26 +129,28 @@ contract IAOLinearVesting is ReentrancyGuard, Initializable {
         _;
     }
 
-    function setOfferingAmount(uint256 _offerAmount) public onlyAdmin {
+    function setOfferingAmount(uint256 _offerAmount) external onlyAdmin {
         require(block.number < startBlock, "cannot update during active iao");
+        emit UpdateOfferingAmount(offeringAmount, _offerAmount);
         offeringAmount = _offerAmount;
     }
 
-    function setRaisingAmount(uint256 _raisingAmount) public onlyAdmin {
+    function setRaisingAmount(uint256 _raisingAmount) external onlyAdmin {
         require(block.number < startBlock, "cannot update during active iao");
+        emit UpdateRaisingAmount(raisingAmount, _raisingAmount);
         raisingAmount = _raisingAmount;
     }
 
     /// @notice Deposits native EVM tokens into the IAO contract as per the value sent
     ///   in the transaction.
-    function depositNative() external payable onlyActiveIAO {
+    function depositNative() external payable onlyActiveIAO nonReentrant {
         require(isNativeTokenStaking, 'stake token is not native EVM token');
         require(msg.value > 0, 'value not > 0');
         depositInternal(msg.value);
     }
 
     /// @dev Deposit ERC20 tokens with support for reflect tokens
-    function deposit(uint256 _amount) external onlyActiveIAO {
+    function deposit(uint256 _amount) external onlyActiveIAO nonReentrant {
         require(!isNativeTokenStaking, "stake token is native token, deposit through 'depositNative'");
         require(_amount > 0, "_amount not > 0");
         uint256 pre = getTotalStakeTokenBalance();
@@ -140,6 +160,7 @@ contract IAOLinearVesting is ReentrancyGuard, Initializable {
             _amount
         );
         uint256 finalDepositAmount = getTotalStakeTokenBalance() - pre;
+        require(finalDepositAmount > 0, 'final deposit amount is zero');
         depositInternal(finalDepositAmount);
     }
 
@@ -177,10 +198,10 @@ contract IAOLinearVesting is ReentrancyGuard, Initializable {
         }
         // Settle refund
         if(!currentUserInfo.refunded) {
+            currentUserInfo.refunded = true;
             if (stakeTokenHarvest > 0) {
                 safeTransferStakeInternal(msg.sender, stakeTokenHarvest);
             }
-            currentUserInfo.refunded = true;
         }
         // Final check to verify the user has not gotten more tokens that originally allocated
         uint256 offeringAllocationLeft = getOfferingAmount(msg.sender) - currentUserInfo.offeringTokensClaimed;
@@ -197,7 +218,8 @@ contract IAOLinearVesting is ReentrancyGuard, Initializable {
     /// @notice Calculate a users allocation based on the total amount deposited. This is done
     ///  by first scaling the deposited amount and dividing by the total amount.
     /// @param _user Address of the user allocation to look up
-    function getUserAllocation(address _user) public view returns (uint256) {
+    /// @notice This function has been deprecated, but leaving in the contract for backwards compatibility.
+    function getUserAllocation(address _user) external view returns (uint256) {
         // avoid division by zero
         if(totalAmount == 0) {
             return 0;
@@ -221,11 +243,10 @@ contract IAOLinearVesting is ReentrancyGuard, Initializable {
 
     /// @notice Calculate a user's offering amount to be received by multiplying the offering amount by
     ///  the user allocation percentage.
-    /// @dev User allocation is scaled up by the ALLOCATION_PRECISION which is scaled down before returning a value.
     /// @param _user Address of the user allocation to look up
     function getOfferingAmount(address _user) public view returns (uint256) {
         if (totalAmount > raisingAmount) {
-            return (offeringAmount * getUserAllocation(_user)) / 1e12;
+            return (userInfo[_user].amount * offeringAmount) / totalAmount;
         } else {
             // Return an offering amount equal to a proportion of the raising amount
             return (userInfo[_user].amount * offeringAmount) / raisingAmount;
@@ -249,15 +270,15 @@ contract IAOLinearVesting is ReentrancyGuard, Initializable {
 
     /// @notice Calculate a user's refunding amount to be received by multiplying the raising amount by
     ///  the user allocation percentage.
-    /// @dev User allocation is scaled up by the ALLOCATION_PRECISION which is scaled down before returning a value.
     /// @param _user Address of the user allocation to look up
     function getRefundingAmount(address _user) public view returns (uint256) {
         // Users are able to obtain their refund on the first harvest only
         if (totalAmount <= raisingAmount) {
             return 0;
         }
-        uint256 payAmount = (raisingAmount * getUserAllocation(_user)) / 1e12;
-        return userInfo[_user].amount - payAmount;
+        uint256 userAmount = userInfo[_user].amount;
+        uint256 payAmount = (userAmount * raisingAmount) / totalAmount;
+        return userAmount - payAmount;
     }
 
     /// @notice Get the amount of tokens a user is eligible to receive based on current state. 
@@ -330,6 +351,7 @@ contract IAOLinearVesting is ReentrancyGuard, Initializable {
         );
         safeTransferStakeInternal(msg.sender, _stakeTokenAmount);
         offeringToken.safeTransfer(msg.sender, _offerAmount);
+        emit AdminFinalWithdraw(_stakeTokenAmount, _offerAmount);
     }
 
     /// @notice Internal function to handle stake token transfers. Depending on the stake
