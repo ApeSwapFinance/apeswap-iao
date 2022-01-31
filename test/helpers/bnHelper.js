@@ -66,7 +66,7 @@ function isWithinLimit(bnToCheck, bnExpected, tolerancePercentage = 2) {
  * 
  * @param {*} bnToCheck Value to check
  * @param {*} bnExpected Expected value
- * @param {*} tolerancePercentage Percentage to add/subtract from expected value to check tolerance
+ * @param {*} tolerance Wei amount within limits
  * @returns boolean
  */
 function isWithinWeiLimit(bnToCheck, bnExpected, tolerance = new BN(0)) {
@@ -74,12 +74,12 @@ function isWithinWeiLimit(bnToCheck, bnExpected, tolerance = new BN(0)) {
   bnExpected = new BN(bnExpected)
   let withinTolerance = true;
   if (bnToCheck.gte(bnExpected.add(tolerance))) {
-    console.error(`bnHelper::isWithinWeiLimit - ${bnToCheck.toString()} gte upper tolerance limit of ${tolerancePercentage}% to a value of ${(bnExpected.add(tolerance)).toString()}`);
+    console.error(`bnHelper::isWithinWeiLimit - ${bnToCheck.toString()} gte upper tolerance limit of ${tolerance} wei to a value of ${(bnExpected.add(tolerance)).toString()}`);
     withinTolerance = false;
   }
 
   if (bnToCheck.lte(bnExpected.sub(tolerance))) {
-    console.error(`bnHelper::isWithinWeiLimit - ${bnToCheck.toString()} lte lower tolerance limit of ${tolerancePercentage}% to a value of ${(bnExpected.sub(tolerance)).toString()}`);
+    console.error(`bnHelper::isWithinWeiLimit - ${bnToCheck.toString()} lte lower tolerance limit of ${tolerance} wei to a value of ${(bnExpected.sub(tolerance)).toString()}`);
     withinTolerance = false;
   }
 
