@@ -20,10 +20,20 @@ module.exports = async function (deployer, network, accounts) {
     //   startBlock: '',
     //   endBlockOffset: '',
     //   vestingBlockOffset: '', //
-    //   offeringAmount: '', // 
-    //   raisingAmount: '', // 
+    //   offeringAmount: ether(''), // 
+    //   raisingAmount: ether(''), // 
+    // },
+    // {
+    //   stakingToken: '0xdDb3Bd8645775F59496c821E4F55A7eA6A6dc299', // GNANA
+    //   offeringToken: '', // 
+    //   startBlock: '',
+    //   endBlockOffset: '',
+    //   vestingBlockOffset: '', //
+    //   offeringAmount: ether(''), // 
+    //   raisingAmount: ether(''), // 
     // },
   ]
+  
   // Array to hold contract deployment information
   let deploymentOutput = [];
   // Deploy single implementation contract
@@ -95,7 +105,9 @@ module.exports = async function (deployer, network, accounts) {
       IAOUpgradeProxy: IAOUpgradeProxy.address,
       IAO: IAO.address,
       startBlock: deployment.startBlock,
+      adminAddress,
       proxyAdminAddress,
+      raiseToken: deployment.stakingToken,
     });
   }
   // log deployments

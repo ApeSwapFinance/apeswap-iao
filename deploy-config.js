@@ -3,8 +3,10 @@ function getNetworkConfig(network, accounts) {
     if(["bsc", "bsc-fork"].includes(network)) {
         console.log(`Deploying with BSC MAINNET config.`)
         return {
-            adminAddress: '0x6c905b4108A87499CEd1E0498721F2B831c6Ab13', // General Admin
-            proxyAdminAddress: '0xf81A0Ee9BB9606e375aeff30364FfA17Bb8a7FD1', // Proxy Admin
+            adminAddress: '0x50Cf6cdE8f63316b2BD6AACd0F5581aEf5dD235D', // BSC GSafe General Admin
+            proxyAdminAddress: '0xA75125CF0A7be136D6745B39DB1FeBadE269ba4D', // BSC GSafe General Proxy Admin
+            // adminAddress: '0x6c905b4108A87499CEd1E0498721F2B831c6Ab13', // (Deprecated) General Admin
+            // proxyAdminAddress: '0xf81A0Ee9BB9606e375aeff30364FfA17Bb8a7FD1', // (Deprecated) Proxy Admin
             rpcProvider: 'https://bsc-dataseed.binance.org',
         }
     } else if (['bsc-testnet', 'bsc-testnet-fork'].includes(network)) {
@@ -17,8 +19,8 @@ function getNetworkConfig(network, accounts) {
     } else if (['development'].includes(network)) {
         console.log(`Deploying with development config.`)
         return {
-            adminAddress: '0xC9F40d1c8a84b8AeD12A241e7b99682Fb7A3FE84',
-            proxyAdminAddress: '0xC9F40d1c8a84b8AeD12A241e7b99682Fb7A3FE84',
+            adminAddress: accounts[0],
+            proxyAdminAddress: accounts[1],
             rpcProvider: 'http://127.0.0.1:8545',
         }
     } else {
