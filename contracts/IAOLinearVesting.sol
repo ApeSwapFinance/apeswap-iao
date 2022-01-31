@@ -114,6 +114,7 @@ contract IAOLinearVesting is ReentrancyGuardUpgradeable {
         totalAmount = 0;
         // Setup admin variable
         adminAddress = _adminAddress;
+        __ReentrancyGuard_init();
     }
 
     modifier onlyAdmin() {

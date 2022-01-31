@@ -108,6 +108,7 @@ contract IAO is ReentrancyGuardUpgradeable {
         raisingAmount = _raisingAmount;
         totalAmount = 0;
         adminAddress = _adminAddress;
+        __ReentrancyGuard_init();
     }
 
     modifier onlyAdmin() {
