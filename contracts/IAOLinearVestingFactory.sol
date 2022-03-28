@@ -28,6 +28,7 @@ import './IAOUpgradeProxy.sol';
 import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
 import "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
+import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 interface IIAOLinearVesting {
     function initialize(
@@ -44,7 +45,7 @@ interface IIAOLinearVesting {
 
 /// @title IAOFactory
 /// @notice Use to deploy IAO contracts on chain
-contract IAOLinearVestingFactory is AccessControlEnumerable {
+contract IAOLinearVestingFactory is AccessControlEnumerable, Initializable {
 
     IIAOLinearVesting[] public IAOLinearVestingImplementations;
     uint256 public IAOLinearVestingVersion;
@@ -67,12 +68,12 @@ contract IAOLinearVestingFactory is AccessControlEnumerable {
     /// @param _iaoProxyAdmin: Admin of the proxy deployed for IAOs. This address has the power to upgrade the IAOLinearVesting Contract
     /// @param _iaoAdmin: Admin of the IAOs. This address has the power to change IAO settings
     /// @param _implementation: Address of the implementation contract to use. 
-    constructor(
+    function initialize(
         address _factoryAdmin,
         address _iaoProxyAdmin,
         address _iaoAdmin,
         IIAOLinearVesting _implementation
-    ) {
+    ) external initializer {
         require(_iaoProxyAdmin != _iaoAdmin, 'iaoProxyAdmin and iaoAdmin cannot be the same');
         // Setup access control
         _setupRole(DEFAULT_ADMIN_ROLE, _factoryAdmin);
