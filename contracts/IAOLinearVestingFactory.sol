@@ -24,11 +24,10 @@ pragma solidity 0.8.6;
  * GitHub:          https://github.com/ApeSwapFinance
  */
 
+import './IAOUpgradeProxy.sol';
 import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
 import "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
-import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
-import '@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol';
 
 interface IIAOLinearVesting {
     function initialize(
@@ -94,9 +93,9 @@ contract IAOLinearVestingFactory is AccessControlEnumerable {
     ) public onlyRole(DEPLOYER_ROLE) returns (IIAOLinearVesting newIAO) {
         require(_adminAddress != proxyAdmin, 'admin and proxyAdmin cannot be the same address');
 
-        TransparentUpgradeableProxy newProxy = new TransparentUpgradeableProxy(
-            address(IAOLinearVestingImplementations[IAOLinearVestingVersion]),
+        IAOUpgradeProxy newProxy = new IAOUpgradeProxy(
             proxyAdmin,
+            address(activeImplementationContract()),
             ""
         );
         newIAO = IIAOLinearVesting(address(newProxy));
