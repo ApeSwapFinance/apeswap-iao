@@ -50,34 +50,39 @@ contract IAOLinearVestingFactory is AccessControlEnumerable {
     uint256 public IAOLinearVestingVersion;
 
     IIAOLinearVesting[] public deployedIAOContracts;
-    address public proxyAdmin;
+    address public iaoProxyAdmin;
+    address public iaoAdmin;
 
     bytes32 public constant DEPLOYER_ROLE = keccak256("DEPLOYER");
 
     event IAOLinearVestingCreated(IIAOLinearVesting indexed newIAO);
     event PushIAOLinearVestingVersion(IIAOLinearVesting indexed newIAO, uint256 newVersionId);
     event SetIAOLinearVestingVersion(uint256 previousVersionId, uint256 newVersionId);
-    event UpdateProxyAdmin(address indexed previousProxyAdmin, address indexed newProxyAdmin);
+    event UpdateIAOAdmins(address previousIAOProxyAdmin, address indexed newIAOProxyAdmin, address indexed previousIAOAdmin, address indexed newIAOAdmin);
     event SweepWithdraw(address indexed receiver, IERC20 indexed token, uint256 balance);
 
 
     /// @notice Constructor
-    /// @param _admin: Admin to set creation roles. 
-    /// @param _proxyAdmin: Admin of the proxy deployed for IAOs. This address has the power to upgrade the IAOLinearVesting Contract
+    /// @param _factoryAdmin: Admin to set creation roles. 
+    /// @param _iaoProxyAdmin: Admin of the proxy deployed for IAOs. This address has the power to upgrade the IAOLinearVesting Contract
+    /// @param _iaoAdmin: Admin of the IAOs. This address has the power to change IAO settings
     /// @param _implementation: Address of the implementation contract to use. 
     constructor(
-        address _admin,
-        address _proxyAdmin,
+        address _factoryAdmin,
+        address _iaoProxyAdmin,
+        address _iaoAdmin,
         IIAOLinearVesting _implementation
     ) {
+        require(_iaoProxyAdmin != _iaoAdmin, 'iaoProxyAdmin and iaoAdmin cannot be the same');
         // Setup access control
-        _setupRole(DEFAULT_ADMIN_ROLE, _admin);
-        _setupRole(DEPLOYER_ROLE, _admin);
+        _setupRole(DEFAULT_ADMIN_ROLE, _factoryAdmin);
+        _setupRole(DEPLOYER_ROLE, _factoryAdmin);
         // Admin role can add new users to deployer role 
         _setRoleAdmin(DEPLOYER_ROLE, DEFAULT_ADMIN_ROLE);
         _pushImplementationContract(_implementation);
 
-        proxyAdmin = _proxyAdmin;
+        iaoProxyAdmin = _iaoProxyAdmin;
+        iaoAdmin = _iaoAdmin;
     }
 
     /// @notice Deploy a new IAOLinearVesting contract based on the current implementation version
@@ -88,13 +93,10 @@ contract IAOLinearVestingFactory is AccessControlEnumerable {
         uint256 _endBlockOffset,
         uint256 _vestingBlockOffset, // Block offset between vesting distributions
         uint256 _offeringAmount,
-        uint256 _raisingAmount,
-        address _adminAddress
+        uint256 _raisingAmount
     ) public onlyRole(DEPLOYER_ROLE) returns (IIAOLinearVesting newIAO) {
-        require(_adminAddress != proxyAdmin, 'admin and proxyAdmin cannot be the same address');
-
         IAOUpgradeProxy newProxy = new IAOUpgradeProxy(
-            proxyAdmin,
+            iaoProxyAdmin,
             address(activeImplementationContract()),
             ""
         );
@@ -108,7 +110,7 @@ contract IAOLinearVestingFactory is AccessControlEnumerable {
             _vestingBlockOffset,
             _offeringAmount,
             _raisingAmount,
-            _adminAddress
+            iaoAdmin
         );
 
         deployedIAOContracts.push(newIAO);
@@ -152,9 +154,11 @@ contract IAOLinearVestingFactory is AccessControlEnumerable {
 
     /// @notice change the address of the proxy admin used when deploying new IAO contracts
     /// @dev The proxy admin must be different than the admin of the implementation as calls from proxyAdmin stop at the proxy contract
-    function changeProxyAdmin(address _newProxyAdmin) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        emit UpdateProxyAdmin(proxyAdmin, _newProxyAdmin);
-        proxyAdmin = _newProxyAdmin;
+    function setIAOAdmins(address _newIAOProxyAdmin, address _newIAOAdmin) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_newIAOProxyAdmin != _newIAOAdmin, 'iaoProxyAdmin and iaoAdmin cannot be the same');
+        emit UpdateIAOAdmins(iaoProxyAdmin, _newIAOProxyAdmin, iaoAdmin, _newIAOAdmin);
+        iaoProxyAdmin = _newIAOProxyAdmin;
+        iaoAdmin = _newIAOAdmin;
     }
 
     /// @notice A public function to sweep accidental ERC20 transfers to this contract. 
