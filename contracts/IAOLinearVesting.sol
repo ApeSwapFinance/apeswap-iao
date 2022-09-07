@@ -346,12 +346,14 @@ contract IAOLinearVesting is ReentrancyGuardUpgradeable {
         external
         onlyAdmin
     {
-        require(
-            _offerAmount <= offeringToken.balanceOf(address(this)),
-            "not enough offering token"
-        );
         safeTransferStakeInternal(msg.sender, _stakeTokenAmount);
-        offeringToken.safeTransfer(msg.sender, _offerAmount);
+        if(_offerAmount > 0) {
+            require(
+                _offerAmount <= offeringToken.balanceOf(address(this)),
+                "not enough offering token"
+            );
+            offeringToken.safeTransfer(msg.sender, _offerAmount);
+        }
         emit AdminFinalWithdraw(_stakeTokenAmount, _offerAmount);
     }
 
@@ -360,6 +362,7 @@ contract IAOLinearVesting is ReentrancyGuardUpgradeable {
     /// @param _to address to send stake token to 
     /// @param _amount value of reward token to transfer
     function safeTransferStakeInternal(address _to, uint256 _amount) internal {
+        if(_amount == 0) { return; }
         require(
             _amount <= getTotalStakeTokenBalance(),
             "not enough stake token"
